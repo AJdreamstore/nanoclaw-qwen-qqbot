@@ -1,0 +1,561 @@
+<p align="center">
+  <img src="assets/qwqnanoclaw-logo.png" alt="QwQnanoclaw" width="400">
+</p>
+
+<p align="center">
+  <strong>QwQnanoclaw = Qwen Code + QQ Bot + Isolated Groups</strong>
+</p>
+
+<p align="center">
+  A personal AI assistant system that brings Qwen Code to your QQ chats, with multi-group isolation and custom skills.
+</p>
+
+<p align="center">
+  <a href="README_zh.md">中文</a>&nbsp; • &nbsp;
+  <a href="https://github.com/qwibitai/nanoclaw">GitHub</a>
+</p>
+
+<p align="center">
+  <strong>🤖 Built 100% by <a href="https://trae.ai">Trae AI IDE</a> - Zero lines of code written by humans!</strong>
+</p>
+
+---
+
+## 🌟 Core Features
+
+### 🧠 **Qwen Code Powered**
+- Uses Alibaba Cloud **Qwen Code** (not Claude Code) - fully accessible in China
+- Native support for Qwen's capabilities: web search, file operations, code execution
+- No proxy required, direct connection to DashScope API
+
+### 💬 **QQ Bot Integration**
+- Connect directly to QQ groups and private chats
+- Real-time message handling via QQ Bot protocol
+- Trigger-based activation: `@YourAssistant` to engage
+
+### 🏠 **Multi-Group Isolation**
+- Each QQ group has its **own isolated environment**
+- Separate memory, sessions, and configurations per group
+- Main group (admin channel) has global management privileges
+- Secure container-based execution prevents cross-group interference
+
+### 🔧 **Qwen Code Skills System**
+- Leverages Qwen Code's native skills framework (`~/.qwen/skills/`)
+- Pre-built skills: `agent-browser` for web automation
+- Create custom skills for your specific needs
+- Skills are global across all groups
+
+### 📦 **Easy Installation & Configuration**
+- One-click installers for Windows, macOS, Linux
+- Interactive setup wizard guides you through configuration
+- Supports multiple data sources: QQ Bot, WhatsApp (optional)
+- Automatic database initialization and migration
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Node.js 20+** installed
+- **Qwen Code** installed and configured
+
+### 1. Install Qwen Code (Required)
+
+```bash
+# Install Qwen Code globally
+npm install -g @qwen-code/qwen-code
+
+# Configure Qwen Code
+npx qwen-code setup
+
+# Set your API key in ~/.qwen/settings.json
+# Edit the file and add:
+# {
+#   "env": {
+#     "DASHSCOPE_API_KEY": "your_api_key_here"
+#   }
+# }
+```
+
+Get API Key from [Alibaba Cloud DashScope](https://dashscope.console.aliyun.com/)
+
+### 2. Install Project
+
+```bash
+# Windows PowerShell
+.\install.ps1
+
+# macOS/Linux
+./install.sh
+```
+
+### 3. Configure
+
+Edit `.env` file with your credentials:
+```bash
+QQ_APP_ID=your_qq_bot_app_id
+QQ_CLIENT_SECRET=your_qq_bot_secret
+DASHSCOPE_API_KEY=your_alibaba_cloud_api_key
+```
+
+### 4. Run Setup
+
+```bash
+npx tsx setup/index.ts
+```
+
+This will:
+- ✅ Check Node.js and dependencies
+- ✅ Verify Qwen Code installation
+- ✅ Create necessary directories
+- ✅ Configure container mode (native/Docker)
+- ✅ Initialize database
+
+### 5. Configure Groups
+
+```bash
+# Interactive group setup wizard
+npx tsx setup/index.ts --step groups-interactive
+```
+
+Follow the wizard to:
+- Set up main group (admin channel)
+- Configure group JID and name
+- Set trigger phrase (default: @Andy)
+
+### 6. Start
+
+```bash
+npm start
+```
+
+Then chat in your QQ group: `@AI Assistant hello!`
+
+---
+
+## 🏗️ System Architecture
+
+### Core Components
+
+```
+QwQnanoclaw
+├── Communication Layer (Channels)
+│   ├── QQ Bot          # QQ message handling
+│   ├── WhatsApp        # WhatsApp support
+│   └── More channels...
+│
+├── Routing Layer (Router)
+│   ├── Message Distribution    # Route messages to groups
+│   ├── Trigger Detection       # Detect @Andy triggers
+│   └── Session Management      # Maintain conversation history
+│
+├── Execution Layer (Container Runner)
+│   ├── Qwen Code       # AI core (replacing Claude Code)
+│   ├── Session Isolation       # Independent session per group
+│   └── Working Directory       # groups/<group-folder>/
+│
+└── Storage Layer (Storage)
+    ├── SQLite (sql.js) # Messages, groups, tasks data
+    ├── Filesystem      # groups/ directory structure
+    └── Session Files   # ~/.qwen/projects/
+```
+
+### Directory Structure
+
+```
+qwqnanoclaw/
+├── groups/                      # Group working directories
+│   ├── main/                    # Main Group (Admin Channel)
+│   │   ├── config.json          # Main group configuration
+│   │   ├── QWEN.md              # AI instructions
+│   │   └── logs/                # Logs
+│   ├── global/                  # Global configuration
+│   │   └── QWEN.md              # Global AI instructions
+│   └── <group-folder>/          # Regular groups
+│       ├── QWEN.md              # Group-specific config (optional)
+│       └── logs/                # Logs
+│
+├── data/                        # Data directory
+│   ├── messages.db              # SQLite database
+│   ├── sessions/                # Session configuration
+│   │   └── <group-folder>/
+│   │       └── .qwen-code/
+│   │           └── settings.json
+│   └── ipc/                     # Inter-process communication
+│
+├── src/                         # Source code
+│   ├── channels/                # Communication channels
+│   ├── config.ts                # Configuration
+│   ├── container-runner.ts      # Qwen Code executor
+│   ├── db.ts                    # Database operations
+│   ├── index.ts                 # Main entry point
+│   └── router.ts                # Message router
+│
+└── store/                       # Runtime storage
+    └── messages.db              # Database (runtime)
+```
+
+---
+
+## 🎯 Core Concepts
+
+### 1. Group
+
+Each QQ group or private chat is a "Group" with independent:
+- **Session**: Conversation history saved at `~/.qwen/projects/<group-folder>/chats/<sessionId>.jsonl`
+- **Working Directory**: `groups/<group-folder>/`, AI can only access this directory
+- **Configuration**: Optional `QWEN.md` defining AI behavior
+
+### 2. Main Group
+
+**Special Group** with highest privileges:
+- **folder = 'main'** (fixed value)
+- **No Trigger Required**: Direct chat, no `@Andy` prefix needed
+- **Project Access**: Can read entire project directory (read-only)
+- **Uniqueness**: Only one main group allowed in the system
+
+**Configuration**:
+```bash
+npx tsx groups/main/setup-main-group.ts --jid "qq:group:YOUR_ID" --name "Main Group"
+```
+
+### 3. Regular Groups
+
+Default group type:
+- **Trigger Required**: Default requires `@Andy` prefix (configurable)
+- **Isolated Access**: Can only access own group directory + global read-only directory
+- **Unlimited**: Can register unlimited number of regular groups
+
+### 4. Session Management
+
+Uses Qwen Code's native session mechanism with JSONL file storage:
+- **Storage Location**: `~/.qwen/projects/<cwd-sanitized>/chats/<sessionId>.jsonl`
+- **Path Conversion**: Working directory path is converted to alphanumeric combination (e.g., `d-program-qwqnanoclaw-groups-main`)
+- **Session Format**: JSONL (JSON Lines) format with chained records via `uuid` and `parentUuid`
+- **Message Format**: Each message stored as `{ type, timestamp, content, role }`
+- **Session Recovery**: Automatically resumes previous conversations when same group sends new messages
+- **Isolation**: Each group has independent session files, ensuring conversation history is isolated
+
+---
+
+## ⚙️ Configuration
+
+### Environment Variables (.env)
+
+```bash
+# Assistant configuration
+ASSISTANT_NAME=Andy                    # Assistant name (used in triggers like @Andy)
+ASSISTANT_HAS_OWN_NUMBER=false         # Has independent phone number
+
+# QQ Bot configuration (optional)
+QQ_APP_ID=your_app_id                  # QQ Bot AppID
+QQ_CLIENT_SECRET=your_secret           # QQ Bot secret key
+
+# Qwen Code configuration (required for AI features)
+DASHSCOPE_API_KEY=your_api_key         # Alibaba Cloud DashScope API Key
+
+# Runtime mode
+NATIVE_MODE=true                       # Native mode (no Docker required)
+```
+
+**Note**: After configuring `.env`, run `npx tsx setup/index.ts` to complete the setup.
+
+### Main Group Configuration
+
+**Method 1: Using Script (Recommended)**
+```bash
+npx tsx groups/main/setup-main-group.ts --jid "qq:group:123456" --name "AI Assistant Main Group"
+```
+
+**Method 2: Manual Configuration**
+```sql
+INSERT INTO registered_groups 
+  (jid, name, folder, trigger_pattern, added_at, requires_trigger) 
+VALUES 
+  ('qq:group:123456', 'AI Assistant Main Group', 'main', '@Andy', datetime('now'), 0);
+```
+
+**Method 3: Code Configuration**
+```typescript
+// src/config.ts
+export const QQ_CONFIG = {
+  appId: 'your_app_id',
+  clientSecret: 'your_secret',
+  mainGroupId: '123456',  // Main group ID
+};
+```
+
+### Group Mounting Strategy
+
+| Group Type | Project Root | Group Directory | Global Directory |
+|------------|--------------|-----------------|------------------|
+| **Main Group** | ✅ Read-only | ✅ Read-write | ❌ Not needed |
+| **Regular Group** | ❌ None | ✅ Read-write | ✅ Read-only |
+
+---
+
+## 💡 Usage Examples
+
+### Basic Conversation
+
+In Main Group (no trigger required):
+```
+Hello, please introduce this project
+Help me check the content of package.json
+Summarize today's conversation
+```
+
+In Regular Groups (trigger required):
+```
+@Andy Hello
+@Andy Help me analyze this file
+@Andy Create a todo list
+```
+
+### Scheduled Tasks
+
+```
+@Andy Every weekday at 8am, collect AI news and send to me
+@Andy Remind me to write daily report at 5pm every day
+@Andy Summarize this week's git commits every Friday
+```
+
+### File Operations
+
+```
+@Andy Check the content of groups/main/QWEN.md
+@Andy Create a notes.md file in groups/main/ directory
+@Andy List all Markdown files in project root
+```
+
+### Group Management
+
+In Main Group:
+```
+List all registered groups
+Pause Monday briefing task
+Check session history for a specific group
+```
+
+---
+
+## 🔧 Advanced Features
+
+### 1. Custom AI Instructions
+
+Define AI behavior in `groups/<group-folder>/QWEN.md`:
+
+```markdown
+# AI Assistant Instructions
+
+## Role
+You are a professional programming assistant, specialized in helping me develop QwQnanoclaw project.
+
+## Response Style
+- Concise and clear, give direct answers
+- Prioritize code examples
+- Avoid lengthy theoretical explanations
+
+## Special Capabilities
+- You can access groups/main/ directory
+- You can read global configuration
+- You can run npm commands
+```
+
+### 2. Session History and Memory
+
+**How Session Works**:
+- When a group sends a message, QwQnanoclaw checks for existing session file at `~/.qwen/projects/<group-folder>/chats/<sessionId>.jsonl`
+- If session exists, it resumes the conversation with full history
+- If no session exists, it creates a new session with the same ID
+- All messages are stored in JSONL format with metadata (type, timestamp, role, content)
+- Session history is automatically managed by Qwen Code's chat compression when approaching token limits
+
+**Session File Example**:
+```jsonl
+{"uuid":"abc123","parentUuid":null,"sessionId":"default","type":"user","content":"Hello","timestamp":"2026-03-14T10:00:00Z"}
+{"uuid":"def456","parentUuid":"abc123","sessionId":"default","type":"assistant","content":"Hi there!","timestamp":"2026-03-14T10:00:05Z"}
+```
+
+**Long-term Memory**:
+- Qwen Code also supports `/save_memory` command to save important facts across all sessions
+- Saved memories are stored in `~/.qwen/QWEN.md` (global) or project-specific QWEN.md files
+- This is separate from session history and persists across all groups
+
+### 3. Session Isolation
+
+Each group has independent Session:
+- **Physical Isolation**: Session files stored in different paths
+- **Logical Isolation**: Conversation history between groups doesn't affect each other
+- **Auto Recovery**: Automatically continue previous conversations after restart
+
+### 3. Trigger Configuration
+
+**No Trigger Required** (Main Group default):
+```json
+{
+  "requiresTrigger": false
+}
+```
+
+**Trigger Required** (Regular Group default):
+```json
+{
+  "trigger": "@Andy",
+  "requiresTrigger": true
+}
+```
+
+### 4. Additional Mount Directories
+
+Add extra access directories for groups:
+
+```json
+{
+  "containerConfig": {
+    "additionalMounts": [
+      {
+        "hostPath": "/path/to/allowed/dir",
+        "containerPath": "/workspace/extra",
+        "readonly": true
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 🛠️ Development & Maintenance
+
+### Common Commands
+
+```bash
+# Development mode
+npm run dev
+
+# Build project
+npm run build
+
+# Initialize project (create directories and default configs)
+npm run init
+
+# Reset project (delete user data, keep structure)
+npm run reset
+
+# Reset with backup
+npm run reset -- --backup
+
+# Force reset (skip confirmation)
+npm run reset:force
+
+# Clean and reinitialize
+npm run clean
+
+# Configure main group
+npx tsx groups/main/setup-main-group.ts --jid "qq:group:ID" --name "Name"
+
+# View database
+sqlite3 store/messages.db
+
+# View logs
+tail -f groups/main/logs/*.log
+```
+
+### Troubleshooting
+
+**Problem 1: Group not responding**
+```bash
+# Check if group is registered
+sqlite3 store/messages.db "SELECT * FROM registered_groups;"
+
+# View logs
+cat groups/<group-folder>/logs/*.log
+```
+
+**Problem 2: Session lost**
+```bash
+# Check session files
+ls -la ~/.qwen/projects/<project-dir>/chats/
+
+# Restart application
+npm run dev
+```
+
+**Problem 3: Qwen Code fails to start**
+```bash
+# Check API Key
+echo $DASHSCOPE_API_KEY
+
+# Test Qwen Code
+qwen --version
+```
+
+### Database Management
+
+```bash
+# View all groups
+sqlite3 store/messages.db "SELECT jid, name, folder FROM registered_groups;"
+
+# View message history
+sqlite3 store/messages.db "SELECT * FROM messages WHERE chat_jid='xxx' ORDER BY timestamp DESC LIMIT 10;"
+
+# View scheduled tasks
+sqlite3 store/messages.db "SELECT * FROM scheduled_tasks WHERE status='active';"
+```
+
+---
+
+## 📚 Related Documentation
+
+- [Main Group Configuration Guide](groups/main/SETUP_GUIDE.md) - Detailed main group configuration tutorial
+- [QwenCode Adaptation Plan](QwQnanoclaw 适配方案：QwenCode 替代 ClaudeCode.md) - Technical architecture documentation
+- [QQ Bot API](https://bot.q.qq.com/wiki/) - QQ bot development documentation
+- [Qwen Code Documentation](https://github.com/QwenLM/qwen-code) - Qwen Code usage guide
+
+---
+
+## ❓ FAQ
+
+### Q: How many main groups can I have?
+**A:** Only one. Main group has highest privileges, multiple would cause conflicts.
+
+### Q: Do regular groups need trigger words?
+**A:** By default yes. But can be exempted by configuring `requiresTrigger: false`.
+
+### Q: Can AI access my project code?
+**A:** Main group can read-only access project root. Regular groups can only access their own group directory.
+
+### Q: How to backup data?
+**A:** Backup `store/messages.db` and `groups/` directory.
+
+### Q: Can I change the main group?
+**A:** Yes. Re-run the configuration script and select a new group.
+
+### Q: Where are session files located?
+**A:** `~/.qwen/projects/<cwd-sanitized>/chats/<sessionId>.jsonl`
+
+### Q: How to view AI's thought process?
+**A:** Check log files in `groups/<group-folder>/logs/` directory.
+
+---
+
+## 🎉 Acknowledgments
+
+- **NanoClaw Original Author**: Created an excellent lightweight AI assistant framework
+- **Qwen Code Team**: Provided powerful domestically available AI tool
+- **QQ Bot**: Provided stable messaging channel
+- **All Contributors**: Thank you for your support and contributions
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) file for details.
+
+---
+
+<p align="center">
+  Made with ❤️ by the QwQnanoclaw Team
+</p>

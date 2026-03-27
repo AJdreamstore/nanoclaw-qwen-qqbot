@@ -1,0 +1,18 @@
+# NanoClaw Agent Runner 容器镜像
+FROM node:20-slim
+
+WORKDIR /app
+
+# 复制 agent-runner 文件
+COPY container/agent-runner/package*.json ./
+COPY container/agent-runner/dist/ ./dist/
+COPY container/agent-runner/src/ ./src/
+
+# 安装依赖
+RUN npm ci --only=production
+
+# 设置工作目录
+WORKDIR /workspace
+
+# 默认命令
+ENTRYPOINT ["node", "/app/dist/index.js"]

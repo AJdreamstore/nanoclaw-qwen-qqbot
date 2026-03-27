@@ -1,0 +1,1009 @@
+/**
+ * Container Runner for QwQnanoclaw
+ * Spawns agent execution in containers and handles IPC
+ */
+import { ChildProcess, exec, spawn } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+
+import {
+  CONTAINER_IMAGE,
+  CONTAINER_MAX_OUTPUT_SIZE,
+  CONTAINER_TIMEOUT,
+  DATA_DIR,
+  GROUPS_DIR,
+  IDLE_TIMEOUT,
+  NATIVE_MODE,
+  TIMEZONE,
+} from './config.js';
+import { readEnvFile } from './env.js';
+import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
+import { logger } from './logger.js';
+import { CONTAINER_RUNTIME_BIN, readonlyMountArgs, stopContainer } from './container-runtime.js';
+import { validateAdditionalMounts } from './mount-security.js';
+import { RegisteredGroup } from './types.js';
+
+// Sentinel markers for robust output parsing (must match agent-runner)
+const OUTPUT_START_MARKER = '---NANOCLAW_OUTPUT_START---';
+const OUTPUT_END_MARKER = '---NANOCLAW_OUTPUT_END---';
+
+export interface ContainerInput {
+  prompt: string;
+  sessionId?: string;
+  groupFolder: string;
+  chatJid: string;
+  isMain: boolean;
+  isScheduledTask?: boolean;
+  assistantName?: string;
+  secrets?: Record<string, string>;
+}
+
+export interface ContainerOutput {
+  status: 'success' | 'error';
+  result: string | null;
+  newSessionId?: string;
+  error?: string;
+}
+
+interface VolumeMount {
+  hostPath: string;
+  containerPath: string;
+  readonly: boolean;
+}
+
+function buildVolumeMounts(
+  group: RegisteredGroup,
+  isMain: boolean,
+): VolumeMount[] {
+  const mounts: VolumeMount[] = [];
+  const projectRoot = process.cwd();
+  const groupDir = resolveGroupFolderPath(group.folder);
+
+  if (isMain) {
+    // Main gets the project root read-only. Writable paths the agent needs
+    // (group folder, IPC, .qwen-code/) are mounted separately below.
+    // Read-only prevents the agent from modifying host application code
+    // (src/, dist/, package.json, etc.) which would bypass the sandbox
+    // entirely on next restart.
+    mounts.push({
+      hostPath: projectRoot,
+      containerPath: '/workspace/project',
+      readonly: true,
+    });
+
+    // Main also gets its group folder as the working directory
+    mounts.push({
+      hostPath: groupDir,
+      containerPath: '/workspace/group',
+      readonly: false,
+    });
+  } else {
+    // Other groups only get their own folder
+    mounts.push({
+      hostPath: groupDir,
+      containerPath: '/workspace/group',
+      readonly: false,
+    });
+
+    // Global memory directory (read-only for non-main)
+    // Only directory mounts are supported, not file mounts
+    const globalDir = path.join(GROUPS_DIR, 'global');
+    if (fs.existsSync(globalDir)) {
+      mounts.push({
+        hostPath: globalDir,
+        containerPath: '/workspace/global',
+        readonly: true,
+      });
+    }
+  }
+
+  // Create settings.json in group folder to configure Qwen Code
+  // Qwen Code reads settings from <cwd>/.qwen/settings.json
+  const groupQwenDir = path.join(groupDir, '.qwen');
+  fs.mkdirSync(groupQwenDir, { recursive: true });
+  const settingsFile = path.join(groupQwenDir, 'settings.json');
+  
+  // Copy global QWEN.md to group directory only if it doesn't exist
+  // This preserves user-customized names (e.g., "小猫", "小狗") in existing sessions
+  const groupQwenMdPath = path.join(groupDir, 'QWEN.md');
+  if (!isMain && !fs.existsSync(groupQwenMdPath)) {
+    const globalQwenMdPath = path.join(GROUPS_DIR, 'global', 'QWEN.md');
+    if (fs.existsSync(globalQwenMdPath)) {
+      const globalQwenMd = fs.readFileSync(globalQwenMdPath, 'utf-8');
+      fs.writeFileSync(groupQwenMdPath, globalQwenMd);
+      logger.info({ group: group.folder, target: groupQwenMdPath, firstLine: globalQwenMd.split('\n')[0] }, 'Copied global QWEN.md to group directory (first time)');
+    }
+  }
+  
+  // Create SYSTEM.md to override default system prompt (replaces "You are Qwen Code" with custom identity)
+  // Qwen Code reads QWEN_SYSTEM_MD environment variable to replace the base system prompt
+  const groupSystemMdPath = path.join(groupDir, 'SYSTEM.md');
+  if (!isMain && !fs.existsSync(groupSystemMdPath)) {
+    const globalSystemMdPath = path.join(GROUPS_DIR, 'global', 'SYSTEM.md');
+    if (fs.existsSync(globalSystemMdPath)) {
+      const globalSystemMd = fs.readFileSync(globalSystemMdPath, 'utf-8');
+      fs.writeFileSync(groupSystemMdPath, globalSystemMd);
+      logger.info({ group: group.folder, target: groupSystemMdPath }, 'Copied global SYSTEM.md to group directory (first time)');
+    }
+  }
+  
+  if (!fs.existsSync(settingsFile)) {
+    fs.writeFileSync(settingsFile, JSON.stringify({
+      env: {
+        // Enable agent swarms (subagent orchestration)
+        // https://code.qwen-code.com/docs/en/agent-teams#orchestrate-teams-of-qwen-code-sessions
+        QWEN_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
+        // Enable Qwen Code's memory feature (persists user preferences between sessions)
+        // https://code.qwen-code.com/docs/en/memory#manage-auto-memory
+        QWEN_CODE_DISABLE_AUTO_MEMORY: '0',
+      },
+      $version: 3,
+    }, null, 2) + '\n');
+  }
+
+  // Per-group Qwen Code sessions directory (isolated from other groups)
+  // Each group gets their own .qwen-code/ to prevent cross-group session access
+  const groupSessionsDir = path.join(
+    DATA_DIR,
+    'sessions',
+    group.folder,
+    '.qwen-code',
+  );
+  fs.mkdirSync(groupSessionsDir, { recursive: true });
+
+  // Sync skills from container/skills/ into each group's .qwen-code/skills/
+  const skillsSrc = path.join(process.cwd(), 'container', 'skills');
+  const skillsDst = path.join(groupSessionsDir, 'skills');
+  if (fs.existsSync(skillsSrc)) {
+    for (const skillDir of fs.readdirSync(skillsSrc)) {
+      const srcDir = path.join(skillsSrc, skillDir);
+      if (!fs.statSync(srcDir).isDirectory()) continue;
+      const dstDir = path.join(skillsDst, skillDir);
+      fs.cpSync(srcDir, dstDir, { recursive: true });
+    }
+  }
+  mounts.push({
+    hostPath: groupSessionsDir,
+    containerPath: '/home/node/.qwen-code',
+    readonly: false,
+  });
+
+  // Per-group IPC namespace: each group gets its own IPC directory
+  // This prevents cross-group privilege escalation via IPC
+  const groupIpcDir = resolveGroupIpcPath(group.folder);
+  fs.mkdirSync(path.join(groupIpcDir, 'messages'), { recursive: true });
+  fs.mkdirSync(path.join(groupIpcDir, 'tasks'), { recursive: true });
+  fs.mkdirSync(path.join(groupIpcDir, 'input'), { recursive: true });
+  mounts.push({
+    hostPath: groupIpcDir,
+    containerPath: '/workspace/ipc',
+    readonly: false,
+  });
+
+  // Copy agent-runner source into a per-group writable location so agents
+  // can customize it (add tools, change behavior) without affecting other
+  // groups. Recompiled on container startup via entrypoint.sh.
+  const agentRunnerSrc = path.join(projectRoot, 'container', 'agent-runner', 'src');
+  const groupAgentRunnerDir = path.join(DATA_DIR, 'sessions', group.folder, 'agent-runner-src');
+  if (!fs.existsSync(groupAgentRunnerDir) && fs.existsSync(agentRunnerSrc)) {
+    fs.cpSync(agentRunnerSrc, groupAgentRunnerDir, { recursive: true });
+  }
+  mounts.push({
+    hostPath: groupAgentRunnerDir,
+    containerPath: '/app/src',
+    readonly: false,
+  });
+
+  // Additional mounts validated against external allowlist (tamper-proof from containers)
+  if (group.containerConfig?.additionalMounts) {
+    const validatedMounts = validateAdditionalMounts(
+      group.containerConfig.additionalMounts,
+      group.name,
+      isMain,
+    );
+    mounts.push(...validatedMounts);
+  }
+
+  return mounts;
+}
+
+/**
+ * Read allowed secrets from .env for passing to the container via stdin.
+ * Secrets are never written to disk or mounted as files.
+ */
+function readSecrets(): Record<string, string> {
+  return readEnvFile(['DASHSCOPE_API_KEY']);
+}
+
+/**
+ * Run Qwen Code agent in native mode (without container isolation)
+ */
+async function runNativeAgent(
+  group: RegisteredGroup,
+  input: ContainerInput,
+  onProcess: (proc: ChildProcess, containerName: string) => void,
+  startTime: number,
+  onOutput?: (output: ContainerOutput) => Promise<void>,
+): Promise<ContainerOutput> {
+  logger.info(
+    { group: group.name, isMain: input.isMain },
+    'Running agent in native mode (no container)'
+  );
+
+  // Create settings.json in group folder to configure Qwen Code
+  // Qwen Code reads settings from <cwd>/.qwen/settings.json
+  const groupDir = resolveGroupFolderPath(group.folder);
+  const groupQwenDir = path.join(groupDir, '.qwen');
+  fs.mkdirSync(groupQwenDir, { recursive: true });
+  const settingsFile = path.join(groupQwenDir, 'settings.json');
+  
+  if (!fs.existsSync(settingsFile)) {
+    // Copy global QWEN.md to group directory if it doesn't exist (non-main groups only)
+    // This preserves user-customized names (e.g., "小猫", "小狗") in existing sessions
+    const groupQwenMdPath = path.join(groupDir, 'QWEN.md');
+    if (!input.isMain && !fs.existsSync(groupQwenMdPath)) {
+      const globalQwenMdPath = path.join(GROUPS_DIR, 'global', 'QWEN.md');
+      if (fs.existsSync(globalQwenMdPath)) {
+        const globalQwenMd = fs.readFileSync(globalQwenMdPath, 'utf-8');
+        fs.writeFileSync(groupQwenMdPath, globalQwenMd);
+        logger.info({ group: group.folder, target: groupQwenMdPath, firstLine: globalQwenMd.split('\n')[0] }, 'Copied global QWEN.md to group directory (first time)');
+      }
+    }
+    
+    // Copy global SYSTEM.md to group directory if it doesn't exist (non-main groups only)
+    // This overrides the default "You are Qwen Code" system prompt
+    const groupSystemMdPath = path.join(groupDir, 'SYSTEM.md');
+    if (!input.isMain && !fs.existsSync(groupSystemMdPath)) {
+      const globalSystemMdPath = path.join(GROUPS_DIR, 'global', 'SYSTEM.md');
+      if (fs.existsSync(globalSystemMdPath)) {
+        const globalSystemMd = fs.readFileSync(globalSystemMdPath, 'utf-8');
+        fs.writeFileSync(groupSystemMdPath, globalSystemMd);
+        logger.info({ group: group.folder, target: groupSystemMdPath }, 'Copied global SYSTEM.md to group directory (first time)');
+      }
+    }
+    
+    fs.writeFileSync(settingsFile, JSON.stringify({
+      env: {
+        // Enable agent swarms (subagent orchestration)
+        QWEN_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
+        // Enable Qwen Code's memory feature (persists user preferences between sessions)
+        // https://code.qwen-code.com/docs/en/memory#manage-auto-memory
+        QWEN_CODE_DISABLE_AUTO_MEMORY: '0',
+      },
+      $version: 3,
+    }, null, 2) + '\n');
+  }
+
+  // Use group folder as working directory
+  // This is the AI's sandbox - users can place project files here (QWEN.md, code, etc.)
+  // Matches QwQnanoclaw original design where groups/<folder>/ is the working directory
+  const workingDir = resolveGroupFolderPath(group.folder);
+
+  // Build qwen code command
+  const qwenArgs = [
+    '--auth-type',
+    'openai',
+  ];
+
+  // Use --resume to continue existing session or start new one with --session-id
+  // Qwen Code stores sessions in ~/.qwen/projects/<cwd-sanitized>/chats/<sessionId>.jsonl
+  // sanitizeCwd: lowercase on Windows + replace all non-alphanumeric chars with '-'
+  logger.info({ 
+    group: group.name, 
+    inputSessionId: input.sessionId,
+    hasSessionId: !!input.sessionId 
+  }, 'Checking session ID from input');
+  
+  let isResumedSession = false;
+  if (input.sessionId) {
+    // Convert cwd path to Qwen Code's project directory naming convention
+    // Match Qwen Code's sanitizeCwd logic in storage.ts
+    let projectDirName = workingDir;
+    if (os.platform() === 'win32') {
+      projectDirName = projectDirName.toLowerCase();
+    }
+    projectDirName = projectDirName.replace(/[^a-zA-Z0-9]/g, '-');
+    
+    const chatsDir = path.join(os.homedir(), '.qwen', 'projects', projectDirName, 'chats');
+    const sessionFile = path.join(chatsDir, `${input.sessionId}.jsonl`);
+    
+    logger.info({ 
+      group: group.name, 
+      sessionId: input.sessionId,
+      workingDir,
+      projectDirName,
+      chatsDir,
+      sessionFile,
+      sessionExists: fs.existsSync(sessionFile)
+    }, 'Checking Qwen Code session');
+    
+    if (fs.existsSync(sessionFile)) {
+      // Resume existing session
+      qwenArgs.push('--resume', input.sessionId);
+      logger.info({ group: group.name, sessionId: input.sessionId, sessionFile }, 'Resuming existing Qwen Code session');
+      isResumedSession = true;
+    } else {
+      // Start new session with same ID
+      qwenArgs.push('--session-id', input.sessionId);
+      logger.info({ group: group.name, sessionId: input.sessionId }, 'Starting new Qwen Code session');
+    }
+  }
+
+  // For resumed sessions, don't use --prompt because Qwen Code will load history
+  // from session file automatically. Instead, we'll write new messages to stdin.
+  // Only add --prompt for new sessions (not resumed)
+  if (!isResumedSession) {
+    qwenArgs.push('--prompt', input.prompt);
+  }
+
+  logger.debug(
+    { group: group.name, args: qwenArgs.join(' '), hasOnOutput: !!onOutput, promptSample: input.prompt.substring(0, 500), isResumedSession },
+    'Spawning Qwen Code in native mode'
+  );
+
+  return new Promise((resolve) => {
+    // On Windows, use node to directly execute the globally installed qwen CLI
+    // Set cwd to the group workspace directory (AI's sandbox)
+    
+    // Find qwen global installation path dynamically
+    // Try common installation paths
+    const possiblePaths = [
+      // npm global path (Windows)
+      path.join(process.env.APPDATA || '', 'npm/node_modules/@qwen-code/qwen-code/cli.js'),
+      // yarn global path (Windows)
+      path.join(process.env.APPDATA || '', 'yarn/global/node_modules/@qwen-code/qwen-code/cli.js'),
+      // pnpm global path (Windows)
+      path.join(process.env.APPDATA || '', 'pnpm/global/node_modules/@qwen-code/qwen-code/cli.js'),
+      // Fallback: try to find via npm prefix
+    ];
+    
+    let qwenCliPath = possiblePaths.find(p => fs.existsSync(p));
+    
+    // If not found, try to get from npm prefix
+    if (!qwenCliPath) {
+      try {
+        const { execSync } = require('child_process');
+        const npmPrefix = execSync('npm prefix -g', { encoding: 'utf-8' }).trim();
+        const prefixedPath = path.join(npmPrefix, 'node_modules/@qwen-code/qwen-code/cli.js');
+        if (fs.existsSync(prefixedPath)) {
+          qwenCliPath = prefixedPath;
+        }
+      } catch (e) {
+        // Ignore error, will use fallback
+      }
+    }
+    
+    // Fallback to 'qwen' command in PATH
+    if (!qwenCliPath) {
+      qwenCliPath = 'qwen';
+    }
+    
+    // Build command - use positional prompt (last argument) instead of --prompt flag
+    // For resumed sessions, don't include --prompt - we'll write to stdin instead
+    const argsWithoutPromptFlag = qwenArgs.filter(arg => arg !== '--prompt');
+    
+    // Ensure working directory exists
+    fs.mkdirSync(workingDir, { recursive: true });
+    
+    const systemMdPath = path.join(workingDir, 'SYSTEM.md');
+    
+    logger.info({ 
+      group: group.name, 
+      cliPath: qwenCliPath,
+      args: argsWithoutPromptFlag,
+      cwd: workingDir,
+      hasOnOutput: !!onOutput,
+      promptLength: input.prompt.length,
+      systemMdPath,
+      systemMdExists: fs.existsSync(systemMdPath),
+      isResumedSession
+    }, 'Starting Qwen Code process with spawn');
+
+    // Use spawn with full path to node executable
+    const child = spawn(process.execPath, [qwenCliPath, ...argsWithoutPromptFlag], {
+      cwd: workingDir,
+      env: {
+        ...process.env,
+        DASHSCOPE_API_KEY: readSecrets().DASHSCOPE_API_KEY || '',
+        // Set QWEN_SYSTEM_MD to override default system prompt (replaces "You are Qwen Code" with custom identity)
+        QWEN_SYSTEM_MD: systemMdPath,
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    onProcess(child, `native-${group.folder}`);
+
+    // For resumed sessions, write new messages to stdin (not --prompt)
+    // This allows Qwen Code to load history from session file and treat stdin as new input
+    if (isResumedSession) {
+      if (child.stdin) {
+        child.stdin.write(input.prompt);
+        child.stdin.end();
+        logger.info({ group: group.name, promptLength: input.prompt.length }, 'Writing new messages to stdin for resumed session');
+      }
+    }
+
+    let stdout = '';
+    let stderr = '';
+    let stdoutTruncated = false;
+    let stderrTruncated = false;
+
+    let parseBuffer = '';
+    let newSessionId: string | undefined;
+    let outputChain = Promise.resolve();
+
+    child.stdout?.on('data', (data: Buffer) => {
+        // Decode stdout as UTF-8 explicitly
+        const chunk = data.toString('utf8');
+
+        logger.info({ group: group.name, chunkLength: chunk.length }, 'Qwen Code stdout data received');
+
+        // Capture all stdout
+        stdout += chunk;
+      });
+
+    child.stderr?.on('data', (data) => {
+      // Decode stderr as UTF-8 explicitly to handle Chinese characters correctly
+      const chunk = data.toString('utf8');
+      if (!stderrTruncated) {
+        const remaining = CONTAINER_MAX_OUTPUT_SIZE - stderr.length;
+        if (chunk.length > remaining) {
+          stderr += chunk.slice(0, remaining);
+          stderrTruncated = true;
+          logger.warn(
+            { group: group.name, size: stderr.length },
+            'Qwen Code stderr truncated',
+          );
+        } else {
+          stderr += chunk;
+        }
+      }
+    });
+
+    const timeout = setTimeout(() => {
+      child.kill();
+      const duration = Date.now() - startTime;
+      logger.error(
+        { group: group.name, duration },
+        'Qwen Code timed out in native mode'
+      );
+      resolve({
+        status: 'error',
+        result: null,
+        error: 'Qwen Code timed out',
+      });
+    }, CONTAINER_TIMEOUT);
+
+    child.on('close', async (code) => {
+      clearTimeout(timeout);
+      await outputChain;
+
+      const duration = Date.now() - startTime;
+      logger.info(
+        { group: group.name, code, duration },
+        'Qwen Code finished in native mode'
+      );
+
+      // Log first 500 chars of stdout for debugging
+      if (stdout) {
+        logger.debug({ stdoutSample: stdout.substring(0, 500) }, 'Qwen Code stdout sample');
+      }
+
+      // Log stderr for debugging
+      if (stderr) {
+        logger.warn({ group: group.name, stderr }, 'Qwen Code stderr output');
+      }
+
+      if (code === 0) {
+        // Log stdout length for debugging
+        logger.debug({ group: group.name, stdoutLength: stdout.length }, 'Qwen Code stdout');
+        
+        // Qwen Code stores sessions in ~/.qwen/projects/<cwd>/chats/<sessionId>.jsonl
+        // Session ID is already tracked in index.ts, no need to retrieve from file
+        
+        // Call onOutput with the final result if provided
+        if (onOutput && stdout) {
+          logger.info({ group: group.name, resultLength: stdout.length }, 'Calling onOutput with final result');
+          await onOutput({
+            status: 'success',
+            result: stdout,
+            newSessionId: input.sessionId, // Use the same session ID for next invocation
+          });
+        }
+        
+        resolve({
+          status: 'success',
+          result: stdout,
+          newSessionId: input.sessionId, // Return the session ID for next invocation
+        });
+      } else {
+        resolve({
+          status: 'error',
+          result: stdout || null,
+          error: stderr || `Qwen Code exited with code ${code}`,
+        });
+      }
+    });
+
+    child.on('error', (err) => {
+      clearTimeout(timeout);
+      logger.error(
+        { group: group.name, error: err },
+        'Qwen Code spawn error in native mode'
+      );
+      resolve({
+        status: 'error',
+        result: null,
+        error: `Qwen Code spawn error: ${err.message}`,
+      });
+    });
+  });
+}
+
+function buildContainerArgs(mounts: VolumeMount[], containerName: string): string[] {
+  const args: string[] = ['run', '-i', '--rm', '--name', containerName];
+
+  // Pass host timezone so container's local time matches the user's
+  args.push('-e', `TZ=${TIMEZONE}`);
+
+  // Run as host user so bind-mounted files are accessible.
+  // Skip when running as root (uid 0), as the container's node user (uid 1000),
+  // or when getuid is unavailable (native Windows without WSL).
+  const hostUid = process.getuid?.();
+  const hostGid = process.getgid?.();
+  if (hostUid != null && hostUid !== 0 && hostUid !== 1000) {
+    args.push('--user', `${hostUid}:${hostGid}`);
+    args.push('-e', 'HOME=/home/node');
+  }
+
+  for (const mount of mounts) {
+    if (mount.readonly) {
+      args.push(...readonlyMountArgs(mount.hostPath, mount.containerPath));
+    } else {
+      args.push('-v', `${mount.hostPath}:${mount.containerPath}`);
+    }
+  }
+
+  args.push(CONTAINER_IMAGE);
+
+  return args;
+}
+
+export async function runContainerAgent(
+  group: RegisteredGroup,
+  input: ContainerInput,
+  onProcess: (proc: ChildProcess, containerName: string) => void,
+  onOutput?: (output: ContainerOutput) => Promise<void>,
+): Promise<ContainerOutput> {
+  const startTime = Date.now();
+
+  // Native mode: run qwen code directly without container isolation
+  if (NATIVE_MODE) {
+    return runNativeAgent(group, input, onProcess, startTime, onOutput);
+  }
+
+  const groupDir = resolveGroupFolderPath(group.folder);
+  fs.mkdirSync(groupDir, { recursive: true });
+
+  const mounts = buildVolumeMounts(group, input.isMain);
+  const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
+  const containerName = `qwqnanoclaw-${safeName}-${Date.now()}`;
+  const containerArgs = buildContainerArgs(mounts, containerName);
+
+  logger.debug(
+    {
+      group: group.name,
+      containerName,
+      mounts: mounts.map(
+        (m) =>
+          `${m.hostPath} -> ${m.containerPath}${m.readonly ? ' (ro)' : ''}`,
+      ),
+      containerArgs: containerArgs.join(' '),
+    },
+    'Container mount configuration',
+  );
+
+  logger.info(
+    {
+      group: group.name,
+      containerName,
+      mountCount: mounts.length,
+      isMain: input.isMain,
+    },
+    'Spawning container agent',
+  );
+
+  const logsDir = path.join(groupDir, 'logs');
+  fs.mkdirSync(logsDir, { recursive: true });
+
+  return new Promise((resolve) => {
+    const container = spawn(CONTAINER_RUNTIME_BIN, containerArgs, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    onProcess(container, containerName);
+
+    let stdout = '';
+    let stderr = '';
+    let stdoutTruncated = false;
+    let stderrTruncated = false;
+
+    // Pass secrets via stdin (never written to disk or mounted as files)
+    input.secrets = readSecrets();
+    container.stdin.write(JSON.stringify(input));
+    container.stdin.end();
+    // Remove secrets from input so they don't appear in logs
+    delete input.secrets;
+
+    // Streaming output: parse OUTPUT_START/END marker pairs as they arrive
+    let parseBuffer = '';
+    let newSessionId: string | undefined;
+    let outputChain = Promise.resolve();
+
+    container.stdout.on('data', (data) => {
+      const chunk = data.toString();
+
+      // Always accumulate for logging
+      if (!stdoutTruncated) {
+        const remaining = CONTAINER_MAX_OUTPUT_SIZE - stdout.length;
+        if (chunk.length > remaining) {
+          stdout += chunk.slice(0, remaining);
+          stdoutTruncated = true;
+          logger.warn(
+            { group: group.name, size: stdout.length },
+            'Container stdout truncated due to size limit',
+          );
+        } else {
+          stdout += chunk;
+        }
+      }
+
+      // Stream-parse for output markers
+      if (onOutput) {
+        parseBuffer += chunk;
+        let startIdx: number;
+        while ((startIdx = parseBuffer.indexOf(OUTPUT_START_MARKER)) !== -1) {
+          const endIdx = parseBuffer.indexOf(OUTPUT_END_MARKER, startIdx);
+          if (endIdx === -1) break; // Incomplete pair, wait for more data
+
+          const jsonStr = parseBuffer
+            .slice(startIdx + OUTPUT_START_MARKER.length, endIdx)
+            .trim();
+          parseBuffer = parseBuffer.slice(endIdx + OUTPUT_END_MARKER.length);
+
+          try {
+            const parsed: ContainerOutput = JSON.parse(jsonStr);
+            if (parsed.newSessionId) {
+              newSessionId = parsed.newSessionId;
+            }
+            hadStreamingOutput = true;
+            // Activity detected — reset the hard timeout
+            resetTimeout();
+            // Call onOutput for all markers (including null results)
+            // so idle timers start even for "silent" query completions.
+            outputChain = outputChain.then(() => onOutput(parsed));
+          } catch (err) {
+            logger.warn(
+              { group: group.name, error: err },
+              'Failed to parse streamed output chunk',
+            );
+          }
+        }
+      }
+    });
+
+    container.stderr.on('data', (data) => {
+      const chunk = data.toString();
+      const lines = chunk.trim().split('\n');
+      for (const line of lines) {
+        if (line) logger.debug({ container: group.folder }, line);
+      }
+      // Don't reset timeout on stderr — SDK writes debug logs continuously.
+      // Timeout only resets on actual output (OUTPUT_MARKER in stdout).
+      if (stderrTruncated) return;
+      const remaining = CONTAINER_MAX_OUTPUT_SIZE - stderr.length;
+      if (chunk.length > remaining) {
+        stderr += chunk.slice(0, remaining);
+        stderrTruncated = true;
+        logger.warn(
+          { group: group.name, size: stderr.length },
+          'Container stderr truncated due to size limit',
+        );
+      } else {
+        stderr += chunk;
+      }
+    });
+
+    let timedOut = false;
+    let hadStreamingOutput = false;
+    const configTimeout = group.containerConfig?.timeout || CONTAINER_TIMEOUT;
+    // Grace period: hard timeout must be at least IDLE_TIMEOUT + 30s so the
+    // graceful _close sentinel has time to trigger before the hard kill fires.
+    const timeoutMs = Math.max(configTimeout, IDLE_TIMEOUT + 30_000);
+
+    const killOnTimeout = () => {
+      timedOut = true;
+      logger.error({ group: group.name, containerName }, 'Container timeout, stopping gracefully');
+      exec(stopContainer(containerName), { timeout: 15000 }, (err) => {
+        if (err) {
+          logger.warn({ group: group.name, containerName, err }, 'Graceful stop failed, force killing');
+          container.kill('SIGKILL');
+        }
+      });
+    };
+
+    let timeout = setTimeout(killOnTimeout, timeoutMs);
+
+    // Reset the timeout whenever there's activity (streaming output)
+    const resetTimeout = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(killOnTimeout, timeoutMs);
+    };
+
+    container.on('close', (code) => {
+      clearTimeout(timeout);
+      const duration = Date.now() - startTime;
+
+      if (timedOut) {
+        const ts = new Date().toISOString().replace(/[:.]/g, '-');
+        const timeoutLog = path.join(logsDir, `container-${ts}.log`);
+        fs.writeFileSync(timeoutLog, [
+          `=== Container Run Log (TIMEOUT) ===`,
+          `Timestamp: ${new Date().toISOString()}`,
+          `Group: ${group.name}`,
+          `Container: ${containerName}`,
+          `Duration: ${duration}ms`,
+          `Exit Code: ${code}`,
+          `Had Streaming Output: ${hadStreamingOutput}`,
+        ].join('\n'));
+
+        // Timeout after output = idle cleanup, not failure.
+        // The agent already sent its response; this is just the
+        // container being reaped after the idle period expired.
+        if (hadStreamingOutput) {
+          logger.info(
+            { group: group.name, containerName, duration, code },
+            'Container timed out after output (idle cleanup)',
+          );
+          outputChain.then(() => {
+            resolve({
+              status: 'success',
+              result: null,
+              newSessionId,
+            });
+          });
+          return;
+        }
+
+        logger.error(
+          { group: group.name, containerName, duration, code },
+          'Container timed out with no output',
+        );
+
+        resolve({
+          status: 'error',
+          result: null,
+          error: `Container timed out after ${configTimeout}ms`,
+        });
+        return;
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const logFile = path.join(logsDir, `container-${timestamp}.log`);
+      const isVerbose = process.env.LOG_LEVEL === 'debug' || process.env.LOG_LEVEL === 'trace';
+
+      const logLines = [
+        `=== Container Run Log ===`,
+        `Timestamp: ${new Date().toISOString()}`,
+        `Group: ${group.name}`,
+        `IsMain: ${input.isMain}`,
+        `Duration: ${duration}ms`,
+        `Exit Code: ${code}`,
+        `Stdout Truncated: ${stdoutTruncated}`,
+        `Stderr Truncated: ${stderrTruncated}`,
+        ``,
+      ];
+
+      const isError = code !== 0;
+
+      if (isVerbose || isError) {
+        logLines.push(
+          `=== Input ===`,
+          JSON.stringify(input, null, 2),
+          ``,
+          `=== Container Args ===`,
+          containerArgs.join(' '),
+          ``,
+          `=== Mounts ===`,
+          mounts
+            .map(
+              (m) =>
+                `${m.hostPath} -> ${m.containerPath}${m.readonly ? ' (ro)' : ''}`,
+            )
+            .join('\n'),
+          ``,
+          `=== Stderr${stderrTruncated ? ' (TRUNCATED)' : ''} ===`,
+          stderr,
+          ``,
+          `=== Stdout${stdoutTruncated ? ' (TRUNCATED)' : ''} ===`,
+          stdout,
+        );
+      } else {
+        logLines.push(
+          `=== Input Summary ===`,
+          `Prompt length: ${input.prompt.length} chars`,
+          `Session ID: ${input.sessionId || 'new'}`,
+          ``,
+          `=== Mounts ===`,
+          mounts
+            .map((m) => `${m.containerPath}${m.readonly ? ' (ro)' : ''}`)
+            .join('\n'),
+          ``,
+        );
+      }
+
+      fs.writeFileSync(logFile, logLines.join('\n'));
+      logger.debug({ logFile, verbose: isVerbose }, 'Container log written');
+
+      if (code !== 0) {
+        logger.error(
+          {
+            group: group.name,
+            code,
+            duration,
+            stderr,
+            stdout,
+            logFile,
+          },
+          'Container exited with error',
+        );
+
+        resolve({
+          status: 'error',
+          result: null,
+          error: `Container exited with code ${code}: ${stderr.slice(-200)}`,
+        });
+        return;
+      }
+
+      // Streaming mode: wait for output chain to settle, return completion marker
+      if (onOutput) {
+        outputChain.then(() => {
+          logger.info(
+            { group: group.name, duration, newSessionId },
+            'Container completed (streaming mode)',
+          );
+          resolve({
+            status: 'success',
+            result: null,
+            newSessionId,
+          });
+        });
+        return;
+      }
+
+      // Legacy mode: parse the last output marker pair from accumulated stdout
+      try {
+        // Extract JSON between sentinel markers for robust parsing
+        const startIdx = stdout.indexOf(OUTPUT_START_MARKER);
+        const endIdx = stdout.indexOf(OUTPUT_END_MARKER);
+
+        let jsonLine: string;
+        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+          jsonLine = stdout
+            .slice(startIdx + OUTPUT_START_MARKER.length, endIdx)
+            .trim();
+        } else {
+          // Fallback: last non-empty line (backwards compatibility)
+          const lines = stdout.trim().split('\n');
+          jsonLine = lines[lines.length - 1];
+        }
+
+        const output: ContainerOutput = JSON.parse(jsonLine);
+
+        logger.info(
+          {
+            group: group.name,
+            duration,
+            status: output.status,
+            hasResult: !!output.result,
+          },
+          'Container completed',
+        );
+
+        resolve(output);
+      } catch (err) {
+        logger.error(
+          {
+            group: group.name,
+            stdout,
+            stderr,
+            error: err,
+          },
+          'Failed to parse container output',
+        );
+
+        resolve({
+          status: 'error',
+          result: null,
+          error: `Failed to parse container output: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+    });
+
+    container.on('error', (err) => {
+      clearTimeout(timeout);
+      logger.error({ group: group.name, containerName, error: err }, 'Container spawn error');
+      resolve({
+        status: 'error',
+        result: null,
+        error: `Container spawn error: ${err.message}`,
+      });
+    });
+  });
+}
+
+export function writeTasksSnapshot(
+  groupFolder: string,
+  isMain: boolean,
+  tasks: Array<{
+    id: string;
+    groupFolder: string;
+    prompt: string;
+    schedule_type: string;
+    schedule_value: string;
+    status: string;
+    next_run: string | null;
+  }>,
+): void {
+  // Write filtered tasks to the group's IPC directory
+  const groupIpcDir = resolveGroupIpcPath(groupFolder);
+  fs.mkdirSync(groupIpcDir, { recursive: true });
+
+  // Main sees all tasks, others only see their own
+  const filteredTasks = isMain
+    ? tasks
+    : tasks.filter((t) => t.groupFolder === groupFolder);
+
+  const tasksFile = path.join(groupIpcDir, 'current_tasks.json');
+  fs.writeFileSync(tasksFile, JSON.stringify(filteredTasks, null, 2));
+}
+
+export interface AvailableGroup {
+  jid: string;
+  name: string;
+  lastActivity: string;
+  isRegistered: boolean;
+}
+
+/**
+ * Write available groups snapshot for the container to read.
+ * Only main group can see all available groups (for activation).
+ * Non-main groups only see their own registration status.
+ */
+export function writeGroupsSnapshot(
+  groupFolder: string,
+  isMain: boolean,
+  groups: AvailableGroup[],
+  registeredJids: Set<string>,
+): void {
+  const groupIpcDir = resolveGroupIpcPath(groupFolder);
+  fs.mkdirSync(groupIpcDir, { recursive: true });
+
+  // Main sees all groups; others see nothing (they can't activate groups)
+  const visibleGroups = isMain ? groups : [];
+
+  const groupsFile = path.join(groupIpcDir, 'available_groups.json');
+  fs.writeFileSync(
+    groupsFile,
+    JSON.stringify(
+      {
+        groups: visibleGroups,
+        lastSync: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+  );
+}
