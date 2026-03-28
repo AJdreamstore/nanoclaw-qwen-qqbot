@@ -1,7 +1,7 @@
 @echo off
 REM NanoClaw Quick Start Script
 echo ========================================
-echo NanoClaw Quick Start
+echo NanoClaw Quick Start(for Windows)
 echo ========================================
 echo.
 

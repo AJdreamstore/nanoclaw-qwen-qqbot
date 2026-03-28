@@ -100,7 +100,7 @@ iwr https://github.com/AJdreamstore/nanoclaw-qwen-qqbot/blob/main/install.ps1 -u
 curl -fsSL https://github.com/AJdreamstore/nanoclaw-qwen-qqbot/blob/main/install.sh | bash
 
 # 或者本地运行
-./install.sh
+sh ./install.sh
 ```
 
 安装脚本会自动：
