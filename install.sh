@@ -13,15 +13,20 @@ echo "╚═══════════════════════�
 echo ""
 
 # Check if Node.js is installed
-if ! command -v node &> /dev/null; then
+NODE_PATH=$(which node 2>/dev/null || echo "")
+
+if [ -z "$NODE_PATH" ]; then
     echo "📦 Node.js is not installed"
     echo ""
     
-    # Detect OS
-    case "$OSTYPE" in
-        darwin*)
+    # Detect OS using uname
+    OS_NAME=$(uname -s)
+    
+    case "$OS_NAME" in
+        Darwin)
             # macOS
-            if command -v brew &> /dev/null; then
+            BREW_PATH=$(which brew 2>/dev/null || echo "")
+            if [ -n "$BREW_PATH" ]; then
                 echo "Installing Node.js via Homebrew..."
                 brew install node@22
             else
@@ -32,14 +37,20 @@ if ! command -v node &> /dev/null; then
                 exit 1
             fi
             ;;
-        linux-gnu*)
+        Linux)
             # Linux
             echo "Installing Node.js 22 LTS..."
-            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-            sudo apt-get install -y nodejs
+            # Check if running as root
+            if [ "$(id -u)" = "0" ]; then
+                curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+                apt-get install -y nodejs
+            else
+                curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+                sudo apt-get install -y nodejs
+            fi
             ;;
         *)
-            echo "Unsupported OS: $OSTYPE"
+            echo "Unsupported OS: $OS_NAME"
             echo "Please install Node.js manually from https://nodejs.org/"
             exit 1
             ;;
