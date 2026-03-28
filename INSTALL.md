@@ -86,7 +86,7 @@ npx qwen-code setup
 ```powershell
 # 1. 打开 PowerShell（管理员）
 # 2. 运行安装脚本
-iwr https://raw.githubusercontent.com/qwibitai/nanoclaw/main/install.ps1 -useb | iex
+iwr https://github.com/AJdreamstore/nanoclaw-qwen-qqbot/blob/main/install.ps1 -useb | iex
 
 # 或者本地运行
 .\install.ps1
@@ -97,7 +97,7 @@ iwr https://raw.githubusercontent.com/qwibitai/nanoclaw/main/install.ps1 -useb |
 ```bash
 # 1. 打开终端
 # 2. 运行安装脚本
-curl -fsSL https://raw.githubusercontent.com/qwibitai/nanoclaw/main/install.sh | bash
+curl -fsSL https://github.com/AJdreamstore/nanoclaw-qwen-qqbot/blob/main/install.sh | bash
 
 # 或者本地运行
 ./install.sh
