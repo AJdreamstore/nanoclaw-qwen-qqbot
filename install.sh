@@ -101,22 +101,23 @@ echo "║              Prerequisites Complete                          ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
-read -p "Run the interactive setup wizard now? [Y/n] " -n 1 -r
-echo ""
+echo "Run the interactive setup wizard now? [Y/n]"
+printf "> "
+read REPLY
 
-case $REPLY in
-    ^[Yy]$|"")
-        echo ""
-        echo "🚀 Running QwQnanoclaw setup wizard..."
-        npx tsx setup/index.ts
-        ;;
-    *)
+case "$REPLY" in
+    [Nn]*)
         echo ""
         echo "✓ Installation complete!"
         echo ""
         echo "You can run the setup wizard later with:"
         echo "   npx tsx setup/index.ts"
         echo ""
+        ;;
+    *)
+        echo ""
+        echo "🚀 Running QwQnanoclaw setup wizard..."
+        npx tsx setup/index.ts
         ;;
 esac
 
