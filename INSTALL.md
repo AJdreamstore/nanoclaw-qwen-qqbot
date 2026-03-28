@@ -96,10 +96,13 @@ iwr https://github.com/AJdreamstore/nanoclaw-qwen-qqbot/blob/main/install.ps1 -u
 
 ```bash
 # 1. 打开终端
-# 2. 运行安装脚本
+# 2. 运行安装脚本（推荐使用 bash）
 curl -fsSL https://github.com/AJdreamstore/nanoclaw-qwen-qqbot/blob/main/install.sh | bash
 
 # 或者本地运行
+bash ./install.sh
+
+# 如果只能用 sh，也可以（脚本已兼容 POSIX sh）
 sh ./install.sh
 ```
 
