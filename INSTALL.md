@@ -112,6 +112,25 @@ sh ./install.sh
 3. ✅ 安装项目依赖
 4. ✅ 创建 .env 配置文件
 5. ✅ 运行交互式设置向导
+6. ✅ **自动重试**：网络错误时自动重试（最多 3 次，间隔 5 秒）
+7. ✅ **断点续装**：失败后可从断点处继续
+
+**如果安装失败（网络问题）：**
+
+```bash
+# 方法 1: 重新运行安装脚本（会从断点继续）
+sh ./install.sh
+
+# 方法 2: 手动重试构建（Docker 模式）
+npm run build-container:sudo
+
+# 方法 3: 切换到原生模式（不需要 Docker）
+npx tsx setup/index.ts --step mode
+# 选择 "Y" 切换到原生模式
+
+# 重置安装进度（从头开始）
+npx tsx setup/index.ts --reset-progress
+```
 
 ### 方式二：手动安装
 

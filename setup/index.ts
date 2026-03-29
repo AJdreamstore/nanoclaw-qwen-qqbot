@@ -5,8 +5,50 @@
  *   npx tsx setup/index.ts --step <name>     # Run specific step
  */
 import * as readline from 'readline';
+import * as fs from 'fs';
+import * as path from 'path';
 import { logger } from '../src/logger.js';
 import { emitStatus } from './status.js';
+
+const PROGRESS_FILE = path.join(process.cwd(), '.setup-progress');
+
+/**
+ * Save installation progress
+ */
+function saveProgress(step: string): void {
+  try {
+    fs.writeFileSync(PROGRESS_FILE, step, 'utf-8');
+  } catch (err) {
+    // Ignore errors - progress tracking is optional
+  }
+}
+
+/**
+ * Get current installation progress
+ */
+function getProgress(): string | null {
+  try {
+    if (fs.existsSync(PROGRESS_FILE)) {
+      return fs.readFileSync(PROGRESS_FILE, 'utf-8').trim();
+    }
+  } catch (err) {
+    // Ignore errors
+  }
+  return null;
+}
+
+/**
+ * Clear installation progress
+ */
+function clearProgress(): void {
+  try {
+    if (fs.existsSync(PROGRESS_FILE)) {
+      fs.unlinkSync(PROGRESS_FILE);
+    }
+  } catch (err) {
+    // Ignore errors
+  }
+}
 
 const STEPS: Record<string, () => Promise<{ run: (args: string[]) => Promise<void> }>> = {
   environment: () => import('./environment.js'),
@@ -294,6 +336,13 @@ async function interactiveWizard(): Promise<void> {
 
     // Step 9: Container mode selection (Docker vs Native)
     console.log('\n📋 Step 9/9: Container Mode Configuration...');
+    
+    // Check if we should resume from container step
+    const progress = getProgress();
+    if (progress === 'container') {
+      console.log('   ℹ Resuming from container configuration step...');
+    }
+    
     const containerModeAnswer = await question('   Run in native mode (no containers)? [Y/n] ');
     const containerMode = containerModeAnswer.toLowerCase() !== 'n' ? 'native' : 'docker';
     
@@ -309,8 +358,10 @@ async function interactiveWizard(): Promise<void> {
           console.log('   ✓ Updated .env with NATIVE_MODE=true');
         }
       }
+      clearProgress(); // Installation complete
     } else {
       console.log('   ℹ Docker mode selected. Container isolation for agent execution.');
+      saveProgress('container'); // Save progress before Docker operations
       
       // Check Docker
       let dockerInstalled = false;
@@ -504,19 +555,55 @@ async function interactiveWizard(): Promise<void> {
         
         if (buildContainer) {
           console.log('\n   Building container image...');
-          try {
-            // Use sudo on Linux to avoid permission issues
-            const dockerCmd = isLinux ? 'sudo docker' : 'docker';
-            execSync(`${dockerCmd} build -t nanoclaw-agent:latest .`, {
-              cwd: path.join(process.cwd(), 'container'),
-              stdio: 'inherit',
-            });
-            console.log('   ✓ Container image built successfully');
-            console.log('   ℹ Image name: nanoclaw-agent:latest');
-            console.log('   ℹ You can now run: npm start');
-          } catch (err) {
-            console.log('   ⚠ Container build failed');
-            console.log('   ℹ You can build it later with: npm run build-container');
+          
+          // Retry logic for network issues
+          const maxRetries = 3;
+          let buildSuccess = false;
+          
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              // Use sudo on Linux to avoid permission issues
+              const dockerCmd = isLinux ? 'sudo docker' : 'docker';
+              execSync(`${dockerCmd} build -t nanoclaw-agent:latest .`, {
+                cwd: path.join(process.cwd(), 'container'),
+                stdio: 'inherit',
+              });
+              buildSuccess = true;
+              console.log('   ✓ Container image built successfully');
+              console.log('   ℹ Image name: nanoclaw-agent:latest');
+              console.log('   ℹ You can now run: npm start');
+              clearProgress(); // Installation complete
+              break; // Success, exit retry loop
+            } catch (err) {
+              if (attempt < maxRetries) {
+                console.log(`   ⚠ Build failed (attempt ${attempt}/${maxRetries})`);
+                console.log('   ℹ This may be due to network issues. Retrying in 5 seconds...');
+                await new Promise(resolve => setTimeout(resolve, 5000));
+              } else {
+                console.log('   ⚠ Container build failed after 3 attempts');
+                console.log('   ℹ This may be a network connectivity issue');
+                console.log('   ℹ You can try again later with: npm run build-container:sudo');
+                console.log('   ℹ Or switch to native mode: npx tsx setup/index.ts --step mode');
+                // Keep progress file so user can retry this step
+              }
+            }
+          }
+          
+          if (!buildSuccess) {
+            // Offer to switch to native mode if build failed
+            const switchToNative = await yesNo('   Would you like to switch to native mode instead?', false);
+            if (switchToNative) {
+              console.log('   ✓ Switching to native mode...');
+              if (fs.existsSync(envPath)) {
+                let envContent = fs.readFileSync(envPath, 'utf-8');
+                // Remove any existing NATIVE_MODE line
+                envContent = envContent.replace(/^NATIVE_MODE=.*$/m, '');
+                // Add new NATIVE_MODE line
+                envContent += '\n# Run in native mode (no containers)\nNATIVE_MODE=true\n';
+                fs.writeFileSync(envPath, envContent);
+                console.log('   ✓ Updated .env with NATIVE_MODE=true');
+              }
+            }
           }
         } else if (imageExists) {
           console.log('   ℹ Using existing container image');
@@ -612,6 +699,13 @@ async function main(): Promise<void> {
     const stepArgs = args.filter((a, i) => i !== stepIdx && i !== stepIdx + 1 && a !== '--');
     await runStep(stepName, stepArgs);
   }
+}
+
+// Add command to reset progress
+if (process.argv.includes('--reset-progress')) {
+  clearProgress();
+  console.log('✓ Installation progress reset');
+  process.exit(0);
 }
 
 main();
