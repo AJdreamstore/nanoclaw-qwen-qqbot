@@ -334,6 +334,83 @@ async function interactiveWizard(): Promise<void> {
       console.log('   ✓ Using default database location: store/messages.db');
     }
 
+    // Step 8.5: Database engine selection
+    console.log('\n📋 Step 8.5/9: Database Engine Selection...');
+    console.log('   ℹ This application supports two SQLite engines:');
+    console.log('      - better-sqlite3: Faster performance, requires compilation (Node.js native module)');
+    console.log('      - sql.js: Pure JavaScript, no compilation needed, works everywhere');
+    
+    // Check if we should resume from database step
+    const dbProgress = getProgress();
+    if (dbProgress === 'database') {
+      console.log('   ℹ Resuming from database engine selection...');
+    }
+    
+    const useBetterSqlite = await yesNo('   Use better-sqlite3 for better performance? (recommended for production)', true);
+    
+    if (useBetterSqlite) {
+      console.log('   ✓ better-sqlite3 selected');
+      saveProgress('database');
+      
+      // Check if better-sqlite3 is installed
+      let betterSqliteInstalled = false;
+      try {
+        require.resolve('better-sqlite3');
+        betterSqliteInstalled = true;
+        console.log('   ✓ better-sqlite3 is already installed');
+      } catch {
+        console.log('   ⚠ better-sqlite3 is not installed');
+        const installBetterSqlite = await yesNo('   Install better-sqlite3 now? (requires Node.js native compilation)', true);
+        
+        if (installBetterSqlite) {
+          console.log('\n   Installing better-sqlite3...');
+          try {
+            execSync('npm install better-sqlite3', { stdio: 'inherit' });
+            betterSqliteInstalled = true;
+            console.log('   ✓ better-sqlite3 installed successfully');
+            
+            // Update .env file
+            if (fs.existsSync(envPath)) {
+              let envContent = fs.readFileSync(envPath, 'utf-8');
+              if (!envContent.includes('DB_ENGINE')) {
+                envContent += '\n# Database engine\nDB_ENGINE=better-sqlite3\n';
+                fs.writeFileSync(envPath, envContent);
+                console.log('   ✓ Updated .env with DB_ENGINE=better-sqlite3');
+              }
+            }
+          } catch (err) {
+            console.log('   ⚠ Failed to install better-sqlite3');
+            console.log('   ℹ This may be due to missing compilation tools');
+            console.log('   ℹ Falling back to sql.js');
+            betterSqliteInstalled = false;
+          }
+        }
+      }
+      
+      if (!betterSqliteInstalled) {
+        console.log('   ℹ Using sql.js instead (no compilation required)');
+        if (fs.existsSync(envPath)) {
+          let envContent = fs.readFileSync(envPath, 'utf-8');
+          if (!envContent.includes('DB_ENGINE')) {
+            envContent += '\n# Database engine\nDB_ENGINE=sql.js\n';
+            fs.writeFileSync(envPath, envContent);
+            console.log('   ✓ Updated .env with DB_ENGINE=sql.js');
+          }
+        }
+      }
+    } else {
+      console.log('   ✓ sql.js selected (pure JavaScript, no compilation needed)');
+      if (fs.existsSync(envPath)) {
+        let envContent = fs.readFileSync(envPath, 'utf-8');
+        if (!envContent.includes('DB_ENGINE')) {
+          envContent += '\n# Database engine\nDB_ENGINE=sql.js\n';
+          fs.writeFileSync(envPath, envContent);
+          console.log('   ✓ Updated .env with DB_ENGINE=sql.js');
+        }
+      }
+    }
+    clearProgress(); // Database step complete
+
     // Step 9: Container mode selection (Docker vs Native)
     console.log('\n📋 Step 9/9: Container Mode Configuration...');
     
@@ -341,28 +418,35 @@ async function interactiveWizard(): Promise<void> {
     const progress = getProgress();
     if (progress === 'container') {
       console.log('   ℹ Resuming from container configuration step...');
+      console.log('   ℹ Docker mode selected. Container isolation for agent execution.');
+      saveProgress('container');
+    } else {
+      // First time installation - default to Docker mode
+      console.log('   ℹ Recommended: Docker mode (container isolation for agent execution)');
+      const useNative = await yesNo('   Use native mode instead? (no containers, agents run directly on host)', false);
+      
+      if (useNative) {
+        console.log('   ✓ Native mode selected');
+        
+        // Update .env file
+        if (fs.existsSync(envPath)) {
+          let envContent = fs.readFileSync(envPath, 'utf-8');
+          if (!envContent.includes('NATIVE_MODE')) {
+            envContent += '\n# Run in native mode (no containers)\nNATIVE_MODE=true\n';
+            fs.writeFileSync(envPath, envContent);
+            console.log('   ✓ Updated .env with NATIVE_MODE=true');
+          }
+        }
+        clearProgress(); // Installation complete
+        return; // Exit early, no need for Docker configuration
+      } else {
+        console.log('   ✓ Docker mode selected. Container isolation for agent execution.');
+        saveProgress('container');
+      }
     }
     
-    const containerModeAnswer = await question('   Run in native mode (no containers)? [Y/n] ');
-    const containerMode = containerModeAnswer.toLowerCase() !== 'n' ? 'native' : 'docker';
-    
-    if (containerMode === 'native') {
-      console.log('   ✓ Native mode selected (agents run directly on host)');
-      
-      // Update .env file
-      if (fs.existsSync(envPath)) {
-        let envContent = fs.readFileSync(envPath, 'utf-8');
-        if (!envContent.includes('NATIVE_MODE')) {
-          envContent += '\n# Run in native mode (no containers)\nNATIVE_MODE=true\n';
-          fs.writeFileSync(envPath, envContent);
-          console.log('   ✓ Updated .env with NATIVE_MODE=true');
-        }
-      }
-      clearProgress(); // Installation complete
-    } else {
-      console.log('   ℹ Docker mode selected. Container isolation for agent execution.');
-      saveProgress('container'); // Save progress before Docker operations
-      
+    // Docker configuration (only reached if Docker mode selected)
+    {
       // Check Docker
       let dockerInstalled = false;
       try {

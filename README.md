@@ -156,7 +156,7 @@ QwQnanoclaw
 │   └── Working Directory       # groups/<group-folder>/
 │
 └── Storage Layer (Storage)
-    ├── SQLite (sql.js) # Messages, groups, tasks data
+    ├── SQLite (better-sqlite3 / sql.js) # Messages, groups, tasks data
     ├── Filesystem      # groups/ directory structure
     └── Session Files   # ~/.qwen/projects/
 ```

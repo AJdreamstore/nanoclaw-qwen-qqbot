@@ -22,10 +22,16 @@
 ## 系统要求
 
 ### 基本要求
-- **Node.js**: 版本 20 或更高
-- **npm**: 随 Node.js 一起安装
+- **Node.js**: 版本 20 或更高（推荐 22 LTS）
+- **npm**: 9 或更高版本（随 Node.js 一起安装）
 - **操作系统**: Windows 10+, macOS 10.15+, Linux (Ubuntu 20.04+, Debian 10+)
 - **Qwen Code**: 必须安装（AI 对话核心功能）
+- **编译工具**（可选，用于 better-sqlite3）:
+  - **Windows**: Visual Studio Build Tools 2019+
+  - **Linux**: build-essential (`sudo apt install build-essential`)
+  - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+
+**注意**: 如果没有编译工具，安装程序会自动使用 sql.js（纯 JavaScript，不需要编译）。
 
 ### Qwen Code 安装（必须）
 
@@ -132,6 +138,28 @@ npx tsx setup/index.ts --step mode
 npx tsx setup/index.ts --reset-progress
 ```
 
+**如果 better-sqlite3 安装失败：**
+
+```bash
+# Windows: 安装 Visual Studio Build Tools
+# 下载地址：https://visualstudio.microsoft.com/downloads/
+# 选择 "Desktop development with C++"
+
+# Linux: 安装编译工具
+sudo apt update
+sudo apt install build-essential
+
+# macOS: 安装 Xcode Command Line Tools
+xcode-select --install
+
+# 然后重新安装 better-sqlite3
+npm install better-sqlite3
+
+# 或手动指定使用 sql.js
+npx tsx setup/index.ts
+# 在数据库选择时选择 "N"
+```
+
 ### 方式二：手动安装
 
 如果您已经安装了 Node.js 20+，可以手动安装：
@@ -206,11 +234,23 @@ npx tsx setup/index.ts
 
 **数据库引擎说明:**
 
-安装程序会自动检测并使用可用的数据库引擎：
-- **better-sqlite3**: 性能更好，但需要编译环境（Windows 需要 Visual Studio）
-- **sql.js**: 纯 JavaScript 实现，不需要编译，适用于虚拟环境或容器
+本应用支持两种 SQLite 引擎：
+- **better-sqlite3**: 性能更快，需要编译（Node.js 原生模块），推荐生产环境使用
+- **sql.js**: 纯 JavaScript 实现，不需要编译，适用于各种环境（包括容器）
 
-如果系统没有编译环境，安装程序会自动使用 sql.js，无需额外配置。
+数据库文件将自动创建在：`store/messages.db`
+
+**数据库引擎选择:**
+安装向导会询问是否使用 better-sqlite3：
+```
+📋 Step 8.5/9: Database Engine Selection...
+   ℹ This application supports two SQLite engines:
+      - better-sqlite3: Faster performance, requires compilation (Node.js native module)
+      - sql.js: Pure JavaScript, no compilation needed, works everywhere
+   Use better-sqlite3 for better performance? (recommended for production) [Y/n] y
+   ✓ better-sqlite3 selected
+   ✓ Updated .env with DB_ENGINE=better-sqlite3
+```
 
 #### 步骤 3: 配置环境变量
 
@@ -221,9 +261,20 @@ notepad .env
 ```
 
 填写必要的配置：
-- `QQ_APP_ID`: 你的 QQ Bot App ID
-- `QQ_CLIENT_SECRET`: 你的 QQ Bot Client Secret
-- `NATIVE_MODE=true`: 使用原生模式（推荐）
+
+```env
+# 消息渠道配置
+QQ_APP_ID=your_qq_app_id
+QQ_APP_SECRET=your_qq_app_secret
+
+# 运行模式配置
+NATIVE_MODE=false  # Docker 模式
+# NATIVE_MODE=true  # 原生模式（推荐）
+
+# 数据库引擎配置
+DB_ENGINE=better-sqlite3  # 性能更快，需要编译（推荐生产环境）
+# DB_ENGINE=sql.js  # 纯 JavaScript，不需要编译（适用于容器环境）
+```
 
 ### Linux/macOS用户
 
