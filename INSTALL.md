@@ -160,6 +160,55 @@ npx tsx setup/index.ts
 # 在数据库选择时选择 "N"
 ```
 
+**如果 Docker 镜像拉取失败（中国大陆用户）：**
+
+方法 1: 配置 Docker 镜像加速器（推荐）
+```bash
+# 编辑 Docker 配置
+sudo nano /etc/docker/daemon.json
+
+# 添加以下内容：
+{
+  "registry-mirrors": [
+    "https://docker.mirrors.ustc.edu.cn",
+    "https://hub-mirror.c.163.com",
+    "https://mirror.baidubce.com"
+  ]
+}
+
+# 重启 Docker
+sudo systemctl restart docker
+
+# 重新构建容器
+npm run build-container:sudo
+```
+
+方法 2: 手动下载并导入镜像
+```bash
+# 1. 在有网络的机器上下载
+docker pull node:22-slim
+docker save node:22-slim -o node-22-slim.tar
+
+# 2. 传输到目标机器（使用 scp、U 盘等）
+scp node-22-slim.tar user@target-machine:/tmp/
+
+# 3. 在目标机器导入
+docker load -i /tmp/node-22-slim.tar
+
+# 4. 验证
+docker images | grep node
+
+# 5. 构建容器
+cd ~/nanoclaw-qwen-qqbot/container
+sudo docker build -t qwqnanoclaw-agent:latest .
+```
+
+方法 3: 切换到原生模式（不需要 Docker）
+```bash
+npx tsx setup/index.ts --step mode
+# 选择 "Y" 切换到原生模式
+```
+
 ### 方式二：手动安装
 
 如果您已经安装了 Node.js 20+，可以手动安装：

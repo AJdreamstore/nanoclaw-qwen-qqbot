@@ -640,6 +640,60 @@ async function interactiveWizard(): Promise<void> {
         if (buildContainer) {
           console.log('\n   Building container image...');
           
+          // Check network connectivity first
+          console.log('   ℹ Checking network connectivity...');
+          let networkOk = false;
+          try {
+            execSync('curl -s --connect-timeout 5 https://registry-1.docker.io > /dev/null 2>&1 || echo "failed"', { stdio: 'pipe' });
+            networkOk = true;
+          } catch {
+            networkOk = false;
+          }
+          
+          if (!networkOk) {
+            console.log('   ⚠ Cannot reach Docker Hub (network issues detected)');
+            console.log('   ℹ Please choose an option:');
+            console.log('');
+            console.log('   Option 1: Use Docker mirror (China users recommended)');
+            console.log('      Edit /etc/docker/daemon.json and add:');
+            console.log('      {');
+            console.log('        "registry-mirrors": [');
+            console.log('          "https://docker.mirrors.ustc.edu.cn",');
+            console.log('          "https://hub-mirror.c.163.com"');
+            console.log('        ]');
+            console.log('      }');
+            console.log('      Then run: sudo systemctl restart docker');
+            console.log('');
+            console.log('   Option 2: Manually import node:22-slim image');
+            console.log('      1. Download on another machine: docker save node:22-slim -o node-22-slim.tar');
+            console.log('      2. Transfer to this machine');
+            console.log('      3. Import: docker load -i node-22-slim.tar');
+            console.log('');
+            console.log('   Option 3: Switch to native mode (no Docker required)');
+            console.log('');
+            
+            const continueAnyway = await yesNo('   Try to build anyway? (may fail)', false);
+            if (!continueAnyway) {
+              const switchToNative = await yesNo('   Switch to native mode instead?', true);
+              if (switchToNative) {
+                console.log('   ✓ Switching to native mode...');
+                if (fs.existsSync(envPath)) {
+                  let envContent = fs.readFileSync(envPath, 'utf-8');
+                  envContent = envContent.replace(/^NATIVE_MODE=.*$/m, '');
+                  envContent += '\n# Run in native mode (no containers)\nNATIVE_MODE=true\n';
+                  fs.writeFileSync(envPath, envContent);
+                  console.log('   ✓ Updated .env with NATIVE_MODE=true');
+                }
+                clearProgress();
+                return;
+              } else {
+                console.log('   ℹ Keeping Docker mode. You can build the container later when network is available.');
+                clearProgress();
+                return;
+              }
+            }
+          }
+          
           // Retry logic for network issues
           const maxRetries = 3;
           let buildSuccess = false;

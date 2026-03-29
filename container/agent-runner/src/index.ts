@@ -48,8 +48,8 @@ interface SessionsIndex {
   entries: SessionEntry[];
 }
 
-const OUTPUT_START_MARKER = '===OUTPUT_START===';
-const OUTPUT_END_MARKER = '===OUTPUT_END===';
+const OUTPUT_START_MARKER = '---QWQNANOCLAW_OUTPUT_START---';
+const OUTPUT_END_MARKER = '---QWQNANOCLAW_OUTPUT_END---';
 
 const GROUPS_DIR = '/workspace/project/groups';
 const DATA_DIR = '/workspace/project/.data';
