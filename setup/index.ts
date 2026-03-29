@@ -315,8 +315,15 @@ async function interactiveWizard(): Promise<void> {
       // Check Docker
       let dockerInstalled = false;
       try {
+        // First check if docker command exists
+        if (isWindows) {
+          execSync('where docker', { stdio: 'ignore' });
+        } else {
+          execSync('which docker', { stdio: 'ignore' });
+        }
+        // Then check if docker daemon is running
         execSync('docker info', { stdio: 'ignore' });
-        console.log('   ✓ Docker is running');
+        console.log('   ✓ Docker is installed and running');
         dockerInstalled = true;
       } catch {
         console.log('   ⚠ Docker is not installed or not running');
@@ -329,20 +336,60 @@ async function interactiveWizard(): Promise<void> {
           console.log('\n   Installing Docker...');
           try {
             if (isLinux) {
-              console.log('   Downloading Docker installation script...');
-              execSync('curl -fsSL https://get.docker.com -o /tmp/get-docker.sh', { stdio: 'ignore' });
-              console.log('   Running Docker installation (requires sudo)...');
-              execSync('sudo sh /tmp/get-docker.sh', { stdio: 'inherit' });
-              console.log('   ✓ Docker installed');
-              console.log('   ℹ Please run: sudo systemctl enable docker && sudo systemctl start docker');
-              
-              // Verify Docker installation
+              // Check if docker command already exists (may just need to start service)
+              let dockerCmdExists = false;
               try {
-                execSync('docker info', { stdio: 'ignore' });
-                dockerInstalled = true;
-                console.log('   ✓ Docker is now running');
+                execSync('which docker', { stdio: 'ignore' });
+                dockerCmdExists = true;
               } catch {
-                console.log('   ⚠ Docker installed but not running. Please start Docker and re-run setup.');
+                dockerCmdExists = false;
+              }
+              
+              if (dockerCmdExists) {
+                console.log('   ✓ Docker is installed but not running');
+                console.log('   ℹ Starting Docker service...');
+                try {
+                  execSync('sudo systemctl start docker', { stdio: 'inherit' });
+                  execSync('sudo systemctl enable docker', { stdio: 'ignore' });
+                  console.log('   ✓ Docker service started and enabled');
+                  
+                  // Verify it's working now
+                  try {
+                    execSync('docker info', { stdio: 'ignore' });
+                    dockerInstalled = true;
+                    console.log('   ✓ Docker is now running');
+                  } catch {
+                    console.log('   ⚠ Docker service failed to start. Please check system logs.');
+                  }
+                } catch (err) {
+                  console.log('   ⚠ Failed to start Docker service');
+                  console.log('   ℹ Please run: sudo systemctl start docker');
+                }
+              } else {
+                // Docker not installed, install it
+                console.log('   Downloading Docker installation script...');
+                execSync('curl -fsSL https://get.docker.com -o /tmp/get-docker.sh', { stdio: 'ignore' });
+                console.log('   Running Docker installation (requires sudo)...');
+                execSync('sudo sh /tmp/get-docker.sh', { stdio: 'inherit' });
+                console.log('   ✓ Docker installed');
+                console.log('   ℹ Starting Docker service...');
+                
+                try {
+                  execSync('sudo systemctl start docker', { stdio: 'ignore' });
+                  execSync('sudo systemctl enable docker', { stdio: 'ignore' });
+                  
+                  // Verify Docker installation
+                  try {
+                    execSync('docker info', { stdio: 'ignore' });
+                    dockerInstalled = true;
+                    console.log('   ✓ Docker is now running');
+                  } catch {
+                    console.log('   ⚠ Docker installed but not running. Please run: sudo systemctl start docker');
+                  }
+                } catch {
+                  console.log('   ⚠ Failed to start Docker service automatically');
+                  console.log('   ℹ Please run: sudo systemctl start docker');
+                }
               }
             } else if (isMac) {
               if (execSync('which brew', { stdio: 'ignore' })) {
