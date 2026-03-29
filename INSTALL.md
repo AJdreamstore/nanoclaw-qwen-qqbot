@@ -327,18 +327,84 @@ NATIVE_MODE=true
 - 🛡️ 更高的安全性
 - 📦 一致的运行环境
 
-**配置:**
-1. 安装 Docker Desktop (Windows/macOS) 或 Docker CE (Linux)
-2. 在 `.env` 文件中设置：
-   ```env
-   NATIVE_MODE=false
-   ```
-3. 启动 Docker
-4. 构建镜像：
-   ```bash
-   cd container
-   docker build -t qwqnanoclaw-agent:latest .
-   ```
+**配置步骤:**
+
+#### 1. 安装 Docker
+
+- **Windows**: 安装 [Docker Desktop](https://docs.docker.com/desktop/install/windows-install/)
+- **macOS**: 安装 [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/)
+- **Linux**: 安装 [Docker CE](https://docs.docker.com/engine/install/)
+
+```bash
+# Linux 快速安装
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo systemctl enable docker && sudo systemctl start docker
+```
+
+#### 2. 配置环境变量
+
+在 `.env` 文件中设置：
+```env
+NATIVE_MODE=false
+```
+
+#### 3. 构建容器镜像
+
+```bash
+# 使用 npm 脚本
+npm run build-container
+
+# 或直接运行
+docker build -t nanoclaw-agent:latest ./container
+```
+
+#### 4. 容器目录映射说明
+
+Docker 模式会自动配置以下目录映射：
+
+| 主机目录 | 容器目录 | 权限 | 用途 |
+|----------|----------|------|------|
+| `./` (项目根目录) | `/workspace/project` | 只读 | 项目代码 |
+| `groups/{folder}/` | `/workspace/group` | 读写 | 群组工作目录 |
+| `groups/global/` | `/workspace/global` | 只读 | 全局配置（非主组） |
+| `data/sessions/{folder}/.qwen-code/` | `/home/node/.qwen-code` | 读写 | Qwen Code 会话 |
+| `data/ipc/{folder}/` | `/workspace/ipc` | 读写 | IPC 通信 |
+| `data/sessions/{folder}/agent-runner-src/` | `/app/src` | 读写 | Agent Runner 源码 |
+
+#### 5. 容器运行配置
+
+容器会自动配置：
+- **用户权限**: 使用宿主用户 UID/GID，避免文件权限问题
+- **时区**: 同步宿主时区 (`TZ` 环境变量)
+- **日志**: 存储在容器外 `groups/{folder}/logs/` 目录
+- **环境变量**: 通过 stdin 传递密钥，不写入文件
+
+#### 6. 验证容器
+
+```bash
+# 测试容器运行
+echo '{"prompt":"test","groupFolder":"test","chatJid":"test","isMain":false}' | \
+docker run -i --rm nanoclaw-agent:latest
+```
+
+#### 7. 额外挂载配置（可选）
+
+可以在群组配置中添加额外挂载：
+
+```json
+{
+  "containerConfig": {
+    "additionalMounts": [
+      {
+        "hostPath": "/host/path",
+        "containerPath": "/workspace/extra/path",
+        "readonly": true
+      }
+    ]
+  }
+}
+```
 
 ---
 

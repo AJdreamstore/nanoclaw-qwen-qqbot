@@ -265,8 +265,35 @@ async function interactiveWizard(): Promise<void> {
       console.log('   ℹ Skipping AI features setup (you can configure them later)');
     }
 
-    // Step 8: Container mode selection
-    console.log('\n📋 Step 8/8: Container configuration...');
+    // Step 8: Database and storage configuration
+    console.log('\n📋 Step 8/8: Database and Storage Configuration...');
+    console.log('   ℹ This application uses SQLite (embedded database) for message storage');
+    console.log('   ✓ No external database server required');
+    console.log('   ✓ Database file will be created automatically at: store/messages.db');
+    
+    // Ask about database location
+    const customDbPath = await yesNo('   Do you want to use a custom database path? (advanced)', false);
+    
+    if (customDbPath) {
+      const dbPath = await question('   Enter custom database path: ');
+      if (dbPath.trim()) {
+        console.log(`   ✓ Custom database path configured: ${dbPath.trim()}`);
+        // Update .env file
+        if (fs.existsSync(envPath)) {
+          let envContent = fs.readFileSync(envPath, 'utf-8');
+          if (!envContent.includes('DATABASE_PATH')) {
+            envContent += `\n# Custom database path\nDATABASE_PATH=${dbPath.trim()}\n`;
+            fs.writeFileSync(envPath, envContent);
+            console.log('   ✓ Updated .env with DATABASE_PATH');
+          }
+        }
+      }
+    } else {
+      console.log('   ✓ Using default database location: store/messages.db');
+    }
+
+    // Step 9: Container mode selection (Docker vs Native)
+    console.log('\n📋 Step 9/9: Container Mode Configuration...');
     const containerModeAnswer = await question('   Run in native mode (no containers)? [Y/n] ');
     const containerMode = containerModeAnswer.toLowerCase() !== 'n' ? 'native' : 'docker';
     
@@ -283,14 +310,94 @@ async function interactiveWizard(): Promise<void> {
         }
       }
     } else {
-      console.log('   ℹ Docker mode selected. Make sure Docker is installed and running.');
+      console.log('   ℹ Docker mode selected. Container isolation for agent execution.');
       
       // Check Docker
+      let dockerInstalled = false;
       try {
         execSync('docker info', { stdio: 'ignore' });
         console.log('   ✓ Docker is running');
+        dockerInstalled = true;
       } catch {
-        console.log('   ⚠ Docker is not running. Please start Docker Desktop.');
+        console.log('   ⚠ Docker is not installed or not running');
+      }
+      
+      if (!dockerInstalled) {
+        const installDocker = await yesNo('   Do you want to install Docker now? (recommended for Docker mode)', true);
+        
+        if (installDocker) {
+          console.log('\n   Installing Docker...');
+          try {
+            if (isLinux) {
+              console.log('   Downloading Docker installation script...');
+              execSync('curl -fsSL https://get.docker.com -o /tmp/get-docker.sh', { stdio: 'ignore' });
+              console.log('   Running Docker installation (requires sudo)...');
+              execSync('sudo sh /tmp/get-docker.sh', { stdio: 'inherit' });
+              console.log('   ✓ Docker installed');
+              console.log('   ℹ Please run: sudo systemctl enable docker && sudo systemctl start docker');
+            } else if (isMac) {
+              if (execSync('which brew', { stdio: 'ignore' })) {
+                console.log('   Installing Docker Desktop via Homebrew...');
+                execSync('brew install --cask docker', { stdio: 'inherit' });
+                console.log('   ✓ Docker Desktop installed');
+                console.log('   ℹ Please open Docker Desktop from Applications folder to complete setup');
+              } else {
+                console.log('   ⚠ Homebrew not found');
+                console.log('   ℹ Please install Docker Desktop manually:');
+                console.log('      https://docs.docker.com/desktop/install/mac-install/');
+              }
+            } else if (isWindows) {
+              console.log('   ⚠ Please install Docker Desktop manually:');
+              console.log('      https://docs.docker.com/desktop/install/windows-install/');
+            }
+          } catch (err) {
+            console.log('   ⚠ Docker installation failed');
+            console.log('   ℹ Please install Docker manually:');
+            console.log('      https://docs.docker.com/get-docker/');
+          }
+        } else {
+          console.log('   ℹ Skipping Docker installation');
+          console.log('   ℹ You can install Docker later: https://docs.docker.com/get-docker/');
+        }
+      }
+      
+      // Configure Docker container settings
+      console.log('\n   📦 Docker Container Configuration:');
+      console.log('   ℹ The following directories will be mounted in the container:');
+      console.log('      - Project root (read-only): /workspace/project');
+      console.log('      - Group folder (read-write): /workspace/group');
+      console.log('      - Qwen Code sessions (read-write): /home/node/.qwen-code');
+      console.log('      - IPC communication (read-write): /workspace/ipc');
+      console.log('      - Agent Runner source (read-write): /app/src');
+      console.log('   ℹ Container runs as host user for file permission compatibility');
+      console.log('   ℹ Logs are stored outside container: groups/{folder}/logs/');
+      
+      // Ask about building the container image
+      const buildContainer = await yesNo('   Do you want to build the Docker container image now?', true);
+      
+      if (buildContainer && dockerInstalled) {
+        console.log('\n   Building container image...');
+        try {
+          execSync('docker build -t nanoclaw-agent:latest .', {
+            cwd: path.join(process.cwd(), 'container'),
+            stdio: 'inherit',
+          });
+          console.log('   ✓ Container image built successfully');
+          console.log('   ℹ Image name: nanoclaw-agent:latest');
+        } catch (err) {
+          console.log('   ⚠ Container build failed');
+          console.log('   ℹ You can build it later with: npm run build-container');
+        }
+      }
+      
+      // Update .env file
+      if (fs.existsSync(envPath)) {
+        let envContent = fs.readFileSync(envPath, 'utf-8');
+        if (!envContent.includes('NATIVE_MODE')) {
+          envContent += '\n# Run in Docker mode (container isolation)\nNATIVE_MODE=false\n';
+          fs.writeFileSync(envPath, envContent);
+          console.log('   ✓ Updated .env with NATIVE_MODE=false');
+        }
       }
     }
 
@@ -304,6 +411,7 @@ async function interactiveWizard(): Promise<void> {
     console.log(`   .env file:     ${fs.existsSync(envPath) ? 'Exists' : 'Not found'}`);
     console.log(`   Qwen Code:     ${qwenInstalled ? 'Installed' : 'Not installed'}`);
     console.log(`   agent-browser: ${agentBrowserInstalled ? 'Installed' : 'Not installed'}`);
+    console.log(`   Database:      SQLite (embedded)`);
     console.log(`   Container:     ${containerMode === 'native' ? 'Native mode' : 'Docker mode'}`);
     console.log('\n╔══════════════════════════════════════════════════════════════╗');
     console.log('║                   Next Steps                                 ║');
