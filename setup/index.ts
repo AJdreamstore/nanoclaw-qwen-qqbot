@@ -353,9 +353,9 @@ async function interactiveWizard(): Promise<void> {
                   execSync('sudo systemctl enable docker', { stdio: 'ignore' });
                   console.log('   ✓ Docker service started and enabled');
                   
-                  // Verify it's working now
+                  // Verify it's working now (use sudo to avoid permission issues)
                   try {
-                    execSync('docker info', { stdio: 'ignore' });
+                    execSync('sudo docker info', { stdio: 'ignore' });
                     dockerInstalled = true;
                     console.log('   ✓ Docker is now running');
                   } catch {
@@ -378,9 +378,9 @@ async function interactiveWizard(): Promise<void> {
                   execSync('sudo systemctl start docker', { stdio: 'ignore' });
                   execSync('sudo systemctl enable docker', { stdio: 'ignore' });
                   
-                  // Verify Docker installation
+                  // Verify Docker installation (use sudo to avoid permission issues)
                   try {
-                    execSync('docker info', { stdio: 'ignore' });
+                    execSync('sudo docker info', { stdio: 'ignore' });
                     dockerInstalled = true;
                     console.log('   ✓ Docker is now running');
                   } catch {
@@ -402,6 +402,14 @@ async function interactiveWizard(): Promise<void> {
                   console.log('   ✓ User added to docker group');
                   console.log('   ℹ Please log out and log back in for changes to take effect');
                   console.log('   ℹ Or run: newgrp docker');
+                  
+                  // Try to verify docker works without sudo using newgrp
+                  try {
+                    execSync('newgrp docker << EOF\ndocker info\nEOF', { stdio: 'ignore' });
+                    console.log('   ✓ Docker is accessible without sudo (using newgrp)');
+                  } catch {
+                    console.log('   ℹ Docker will be accessible after re-login');
+                  }
                 } catch {
                   console.log('   ⚠ Failed to add user to docker group');
                   console.log('   ℹ Please run: sudo usermod -aG docker $USER');

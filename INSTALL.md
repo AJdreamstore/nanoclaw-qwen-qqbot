@@ -382,10 +382,21 @@ Docker 模式会自动配置以下目录映射：
 
 #### 6. 验证容器
 
+**验证 Docker 安装：**
+
 ```bash
-# 测试容器运行
+# 使用 sudo 验证（立即生效）
+sudo docker info
+
+# 验证 Docker 服务状态
+sudo systemctl status docker
+```
+
+**测试容器运行：**
+
+```bash
 echo '{"prompt":"test","groupFolder":"test","chatJid":"test","isMain":false}' | \
-docker run -i --rm nanoclaw-agent:latest
+sudo docker run -i --rm nanoclaw-agent:latest
 ```
 
 **注意**: 如果遇到 `permission denied` 错误：
@@ -398,6 +409,9 @@ sudo docker ps
 sudo usermod -aG docker $USER
 # 然后登出并重新登录，或运行：
 newgrp docker
+
+# 验证是否生效
+docker ps  # 应该不再需要 sudo
 ```
 
 #### 7. 额外挂载配置（可选）
