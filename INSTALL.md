@@ -209,6 +209,19 @@ npx tsx setup/index.ts --step mode
 # 选择 "Y" 切换到原生模式
 ```
 
+方法 4: 手动恢复进度并从容器步骤继续
+```bash
+# 如果重新运行 install.sh 仍然从头开始
+# 可以手动创建进度文件，强制从容器步骤继续
+
+# 创建进度文件
+echo "container" > .setup-progress
+
+# 重新运行安装
+sh ./install.sh
+# 现在会显示：ℹ Resuming from container configuration step...
+```
+
 ### 方式二：手动安装
 
 如果您已经安装了 Node.js 20+，可以手动安装：

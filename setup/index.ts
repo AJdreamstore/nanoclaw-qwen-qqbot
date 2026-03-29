@@ -340,17 +340,10 @@ async function interactiveWizard(): Promise<void> {
     console.log('      - better-sqlite3: Faster performance, requires compilation (Node.js native module)');
     console.log('      - sql.js: Pure JavaScript, no compilation needed, works everywhere');
     
-    // Check if we should resume from database step
-    const dbProgress = getProgress();
-    if (dbProgress === 'database') {
-      console.log('   ℹ Resuming from database engine selection...');
-    }
-    
     const useBetterSqlite = await yesNo('   Use better-sqlite3 for better performance? (recommended for production)', true);
     
     if (useBetterSqlite) {
       console.log('   ✓ better-sqlite3 selected');
-      saveProgress('database');
       
       // Check if better-sqlite3 is installed
       let betterSqliteInstalled = false;
@@ -409,7 +402,7 @@ async function interactiveWizard(): Promise<void> {
         }
       }
     }
-    clearProgress(); // Database step complete
+    // Database step complete - progress will be saved in container step if needed
 
     // Step 9: Container mode selection (Docker vs Native)
     console.log('\n📋 Step 9/9: Container Mode Configuration...');
@@ -419,7 +412,7 @@ async function interactiveWizard(): Promise<void> {
     if (progress === 'container') {
       console.log('   ℹ Resuming from container configuration step...');
       console.log('   ℹ Docker mode selected. Container isolation for agent execution.');
-      saveProgress('container');
+      // Progress already saved, continue to Docker operations
     } else {
       // First time installation - default to Docker mode
       console.log('   ℹ Recommended: Docker mode (container isolation for agent execution)');
@@ -441,7 +434,7 @@ async function interactiveWizard(): Promise<void> {
         return; // Exit early, no need for Docker configuration
       } else {
         console.log('   ✓ Docker mode selected. Container isolation for agent execution.');
-        saveProgress('container');
+        saveProgress('container'); // Save progress before Docker operations
       }
     }
     
