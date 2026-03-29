@@ -351,12 +351,31 @@ NATIVE_MODE=false
 
 #### 3. 构建容器镜像
 
-```bash
-# 使用 npm 脚本
-npm run build-container
+**使用 npm 脚本：**
 
-# 或直接运行
+```bash
+# Linux 用户（推荐）
+npm run build-container:sudo
+
+# 或者已经配置 docker 用户组后
+npm run build-container
+```
+
+**或直接运行：**
+
+```bash
+# Linux 用户
+sudo docker build -t nanoclaw-agent:latest ./container
+
+# 已配置 docker 用户组后
 docker build -t nanoclaw-agent:latest ./container
+```
+
+**验证镜像：**
+
+```bash
+sudo docker images | grep nanoclaw-agent
+# 应该看到：nanoclaw-agent   latest   <IMAGE_ID>
 ```
 
 #### 4. 容器目录映射说明

@@ -18,6 +18,7 @@
     "reset:force": "tsx scripts/reset.ts --force",
     "clean": "npm run reset && npm run init",
     "build-container": "docker build -t nanoclaw-agent:latest ./container",
+    "build-container:sudo": "sudo docker build -t nanoclaw-agent:latest ./container",
     "test": "vitest run",
     "test:watch": "vitest"
   },

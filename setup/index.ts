@@ -479,21 +479,48 @@ async function interactiveWizard(): Promise<void> {
         console.log('   ℹ Logs are stored outside container: groups/{folder}/logs/');
         
         // Ask about building the container image
-        const buildContainer = await yesNo('   Do you want to build the Docker container image now?', true);
+        let buildContainer = false;
+        
+        // Check if image already exists
+        let imageExists = false;
+        try {
+          const dockerCmd = isLinux ? 'sudo docker' : 'docker';
+          execSync(`${dockerCmd} images nanoclaw-agent -q`, {
+            cwd: path.join(process.cwd(), 'container'),
+            stdio: 'ignore',
+          });
+          imageExists = true;
+          console.log('   ✓ Container image already exists');
+        } catch {
+          imageExists = false;
+        }
+        
+        if (imageExists) {
+          const rebuild = await yesNo('   Do you want to rebuild the container image?', false);
+          buildContainer = rebuild;
+        } else {
+          buildContainer = await yesNo('   Do you want to build the Docker container image now?', true);
+        }
         
         if (buildContainer) {
           console.log('\n   Building container image...');
           try {
-            execSync('docker build -t nanoclaw-agent:latest .', {
+            // Use sudo on Linux to avoid permission issues
+            const dockerCmd = isLinux ? 'sudo docker' : 'docker';
+            execSync(`${dockerCmd} build -t nanoclaw-agent:latest .`, {
               cwd: path.join(process.cwd(), 'container'),
               stdio: 'inherit',
             });
             console.log('   ✓ Container image built successfully');
             console.log('   ℹ Image name: nanoclaw-agent:latest');
+            console.log('   ℹ You can now run: npm start');
           } catch (err) {
             console.log('   ⚠ Container build failed');
             console.log('   ℹ You can build it later with: npm run build-container');
           }
+        } else if (imageExists) {
+          console.log('   ℹ Using existing container image');
+          console.log('   ℹ You can rebuild it later with: npm run build-container:sudo');
         }
         
         // Update .env file
