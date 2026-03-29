@@ -391,6 +391,22 @@ async function interactiveWizard(): Promise<void> {
                   console.log('   ℹ Please run: sudo systemctl start docker');
                 }
               }
+              
+              // Add user to docker group to avoid permission issues
+              if (dockerInstalled && isLinux) {
+                console.log('\n   ℹ Adding current user to docker group...');
+                try {
+                  const os = await import('os');
+                  const username = os.userInfo().username;
+                  execSync(`sudo usermod -aG docker ${username}`, { stdio: 'ignore' });
+                  console.log('   ✓ User added to docker group');
+                  console.log('   ℹ Please log out and log back in for changes to take effect');
+                  console.log('   ℹ Or run: newgrp docker');
+                } catch {
+                  console.log('   ⚠ Failed to add user to docker group');
+                  console.log('   ℹ Please run: sudo usermod -aG docker $USER');
+                }
+              }
             } else if (isMac) {
               if (execSync('which brew', { stdio: 'ignore' })) {
                 console.log('   Installing Docker Desktop via Homebrew...');

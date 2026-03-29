@@ -388,6 +388,18 @@ echo '{"prompt":"test","groupFolder":"test","chatJid":"test","isMain":false}' | 
 docker run -i --rm nanoclaw-agent:latest
 ```
 
+**注意**: 如果遇到 `permission denied` 错误：
+
+```bash
+# 方法 1: 使用 sudo（临时方案）
+sudo docker ps
+
+# 方法 2: 将用户添加到 docker 用户组（推荐）
+sudo usermod -aG docker $USER
+# 然后登出并重新登录，或运行：
+newgrp docker
+```
+
 #### 7. 额外挂载配置（可选）
 
 可以在群组配置中添加额外挂载：
