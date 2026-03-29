@@ -335,12 +335,22 @@ async function interactiveWizard(): Promise<void> {
               execSync('sudo sh /tmp/get-docker.sh', { stdio: 'inherit' });
               console.log('   ✓ Docker installed');
               console.log('   ℹ Please run: sudo systemctl enable docker && sudo systemctl start docker');
+              
+              // Verify Docker installation
+              try {
+                execSync('docker info', { stdio: 'ignore' });
+                dockerInstalled = true;
+                console.log('   ✓ Docker is now running');
+              } catch {
+                console.log('   ⚠ Docker installed but not running. Please start Docker and re-run setup.');
+              }
             } else if (isMac) {
               if (execSync('which brew', { stdio: 'ignore' })) {
                 console.log('   Installing Docker Desktop via Homebrew...');
                 execSync('brew install --cask docker', { stdio: 'inherit' });
                 console.log('   ✓ Docker Desktop installed');
                 console.log('   ℹ Please open Docker Desktop from Applications folder to complete setup');
+                console.log('   ℹ After Docker Desktop is running, re-run setup to build container image.');
               } else {
                 console.log('   ⚠ Homebrew not found');
                 console.log('   ℹ Please install Docker Desktop manually:');
@@ -359,44 +369,70 @@ async function interactiveWizard(): Promise<void> {
           console.log('   ℹ Skipping Docker installation');
           console.log('   ℹ You can install Docker later: https://docs.docker.com/get-docker/');
         }
-      }
-      
-      // Configure Docker container settings
-      console.log('\n   📦 Docker Container Configuration:');
-      console.log('   ℹ The following directories will be mounted in the container:');
-      console.log('      - Project root (read-only): /workspace/project');
-      console.log('      - Group folder (read-write): /workspace/group');
-      console.log('      - Qwen Code sessions (read-write): /home/node/.qwen-code');
-      console.log('      - IPC communication (read-write): /workspace/ipc');
-      console.log('      - Agent Runner source (read-write): /app/src');
-      console.log('   ℹ Container runs as host user for file permission compatibility');
-      console.log('   ℹ Logs are stored outside container: groups/{folder}/logs/');
-      
-      // Ask about building the container image
-      const buildContainer = await yesNo('   Do you want to build the Docker container image now?', true);
-      
-      if (buildContainer && dockerInstalled) {
-        console.log('\n   Building container image...');
-        try {
-          execSync('docker build -t nanoclaw-agent:latest .', {
-            cwd: path.join(process.cwd(), 'container'),
-            stdio: 'inherit',
-          });
-          console.log('   ✓ Container image built successfully');
-          console.log('   ℹ Image name: nanoclaw-agent:latest');
-        } catch (err) {
-          console.log('   ⚠ Container build failed');
-          console.log('   ℹ You can build it later with: npm run build-container');
+        
+        // If Docker is still not available, offer to switch to native mode
+        if (!dockerInstalled) {
+          console.log('\n   ⚠ Docker mode requires Docker to be installed and running.');
+          const switchToNative = await yesNo('   Would you like to switch to native mode instead? (recommended)', true);
+          
+          if (switchToNative) {
+            console.log('   ✓ Switching to native mode...');
+            if (fs.existsSync(envPath)) {
+              let envContent = fs.readFileSync(envPath, 'utf-8');
+              if (!envContent.includes('NATIVE_MODE')) {
+                envContent += '\n# Run in native mode (no containers)\nNATIVE_MODE=true\n';
+                fs.writeFileSync(envPath, envContent);
+                console.log('   ✓ Updated .env with NATIVE_MODE=true');
+              }
+            }
+            // Skip container configuration and build steps
+            return; // Exit early from Docker mode configuration
+          } else {
+            console.log('   ℹ Keeping Docker mode. Please install Docker and manually build the container image later.');
+            console.log('   ℹ Command: npm run build-container');
+          }
         }
       }
       
-      // Update .env file
-      if (fs.existsSync(envPath)) {
-        let envContent = fs.readFileSync(envPath, 'utf-8');
-        if (!envContent.includes('NATIVE_MODE')) {
-          envContent += '\n# Run in Docker mode (container isolation)\nNATIVE_MODE=false\n';
-          fs.writeFileSync(envPath, envContent);
-          console.log('   ✓ Updated .env with NATIVE_MODE=false');
+      // Only show container configuration if Docker is available
+      if (dockerInstalled) {
+        // Configure Docker container settings
+        console.log('\n   📦 Docker Container Configuration:');
+        console.log('   ℹ The following directories will be mounted in the container:');
+        console.log('      - Project root (read-only): /workspace/project');
+        console.log('      - Group folder (read-write): /workspace/group');
+        console.log('      - Qwen Code sessions (read-write): /home/node/.qwen-code');
+        console.log('      - IPC communication (read-write): /workspace/ipc');
+        console.log('      - Agent Runner source (read-write): /app/src');
+        console.log('   ℹ Container runs as host user for file permission compatibility');
+        console.log('   ℹ Logs are stored outside container: groups/{folder}/logs/');
+        
+        // Ask about building the container image
+        const buildContainer = await yesNo('   Do you want to build the Docker container image now?', true);
+        
+        if (buildContainer) {
+          console.log('\n   Building container image...');
+          try {
+            execSync('docker build -t nanoclaw-agent:latest .', {
+              cwd: path.join(process.cwd(), 'container'),
+              stdio: 'inherit',
+            });
+            console.log('   ✓ Container image built successfully');
+            console.log('   ℹ Image name: nanoclaw-agent:latest');
+          } catch (err) {
+            console.log('   ⚠ Container build failed');
+            console.log('   ℹ You can build it later with: npm run build-container');
+          }
+        }
+        
+        // Update .env file
+        if (fs.existsSync(envPath)) {
+          let envContent = fs.readFileSync(envPath, 'utf-8');
+          if (!envContent.includes('NATIVE_MODE')) {
+            envContent += '\n# Run in Docker mode (container isolation)\nNATIVE_MODE=false\n';
+            fs.writeFileSync(envPath, envContent);
+            console.log('   ✓ Updated .env with NATIVE_MODE=false');
+          }
         }
       }
     }
