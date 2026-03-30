@@ -658,6 +658,16 @@ async function interactiveWizard(): Promise<void> {
             console.log('   ✓ Updated .env with NATIVE_MODE=false');
           }
         }
+        
+        // Build TypeScript
+        console.log('\n   Building TypeScript...');
+        try {
+          execSync('npm run build', { stdio: 'inherit' });
+          console.log('   ✓ TypeScript build complete');
+        } catch (err) {
+          console.log('   ⚠ TypeScript build failed');
+          console.log('   ℹ You can build manually later: npm run build');
+        }
       }
     }
 
