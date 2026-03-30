@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="README_zh.md">中文</a>&nbsp; • &nbsp;
-  <a href="https://github.com/qwibitai/nanoclaw">GitHub</a>
+  <a href="https://github.com/AJdreamstore/nanoclaw-qwen-qqbot">GitHub</a>
 </p>
 
 <p align="center">

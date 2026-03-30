@@ -1,7 +1,7 @@
 /**
  * Setup CLI entry point.
  * Usage: 
- *   npx tsx setup/index.ts                    # Interactive wizard
+ *   npx tsx setup/index.ts                    # Interactive wizard 
  *   npx tsx setup/index.ts --step <name>     # Run specific step
  */
 import * as readline from 'readline';
@@ -613,7 +613,7 @@ async function interactiveWizard(): Promise<void> {
         let imageExists = false;
         try {
           const dockerCmd = isLinux ? 'sudo docker' : 'docker';
-          execSync(`${dockerCmd} images nanoclaw-agent -q`, {
+          execSync(`${dockerCmd} images qwqnanoclaw-agent -q`, {
             cwd: path.join(process.cwd(), 'container'),
             stdio: 'ignore',
           });
@@ -633,112 +633,20 @@ async function interactiveWizard(): Promise<void> {
         if (buildContainer) {
           console.log('\n   Building container image...');
           
-          // Check network connectivity first
-          console.log('   ℹ Checking network connectivity...');
-          let networkOk = false;
-          try {
-            execSync('curl -s --connect-timeout 5 https://registry-1.docker.io > /dev/null 2>&1 || echo "failed"', { stdio: 'pipe' });
-            networkOk = true;
-          } catch {
-            networkOk = false;
-          }
-          
-          if (!networkOk) {
-            console.log('   ⚠ Cannot reach Docker Hub (network issues detected)');
-            console.log('   ℹ Please choose an option:');
-            console.log('');
-            console.log('   Option 1: Use Docker mirror (China users recommended)');
-            console.log('      Edit /etc/docker/daemon.json and add:');
-            console.log('      {');
-            console.log('        "registry-mirrors": [');
-            console.log('          "https://docker.mirrors.ustc.edu.cn",');
-            console.log('          "https://hub-mirror.c.163.com"');
-            console.log('        ]');
-            console.log('      }');
-            console.log('      Then run: sudo systemctl restart docker');
-            console.log('');
-            console.log('   Option 2: Manually import node:22-slim image');
-            console.log('      1. Download on another machine: docker save node:22-slim -o node-22-slim.tar');
-            console.log('      2. Transfer to this machine');
-            console.log('      3. Import: docker load -i node-22-slim.tar');
-            console.log('');
-            console.log('   Option 3: Switch to native mode (no Docker required)');
-            console.log('');
-            
-            const continueAnyway = await yesNo('   Try to build anyway? (may fail)', false);
-            if (!continueAnyway) {
-              const switchToNative = await yesNo('   Switch to native mode instead?', true);
-              if (switchToNative) {
-                console.log('   ✓ Switching to native mode...');
-                if (fs.existsSync(envPath)) {
-                  let envContent = fs.readFileSync(envPath, 'utf-8');
-                  envContent = envContent.replace(/^NATIVE_MODE=.*$/m, '');
-                  envContent += '\n# Run in native mode (no containers)\nNATIVE_MODE=true\n';
-                  fs.writeFileSync(envPath, envContent);
-                  console.log('   ✓ Updated .env with NATIVE_MODE=true');
-                }
-                clearProgress();
-                return;
-              } else {
-                console.log('   ℹ Keeping Docker mode. You can build the container later when network is available.');
-                clearProgress();
-                return;
-              }
-            }
-          }
-          
-          // Retry logic for network issues
-          const maxRetries = 3;
-          let buildSuccess = false;
-          
-          for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-              // Use sudo on Linux to avoid permission issues
-              const dockerCmd = isLinux ? 'sudo docker' : 'docker';
-              execSync(`${dockerCmd} build -t nanoclaw-agent:latest .`, {
-                cwd: path.join(process.cwd(), 'container'),
-                stdio: 'inherit',
-              });
-              buildSuccess = true;
-              console.log('   ✓ Container image built successfully');
-              console.log('   ℹ Image name: nanoclaw-agent:latest');
-              console.log('   ℹ You can now run: npm start');
-              clearProgress(); // Installation complete
-              break; // Success, exit retry loop
-            } catch (err) {
-              if (attempt < maxRetries) {
-                console.log(`   ⚠ Build failed (attempt ${attempt}/${maxRetries})`);
-                console.log('   ℹ This may be due to network issues. Retrying in 5 seconds...');
-                await new Promise(resolve => setTimeout(resolve, 5000));
-              } else {
-                console.log('   ⚠ Container build failed after 3 attempts');
-                console.log('   ℹ This may be a network connectivity issue');
-                console.log('   ℹ You can try again later with: npm run build-container:sudo');
-                console.log('   ℹ Or switch to native mode: npx tsx setup/index.ts --step mode');
-                // Keep progress file so user can retry this step
-              }
-            }
-          }
-          
-          if (!buildSuccess) {
-            // Offer to switch to native mode if build failed
-            const switchToNative = await yesNo('   Would you like to switch to native mode instead?', false);
-            if (switchToNative) {
-              console.log('   ✓ Switching to native mode...');
-              if (fs.existsSync(envPath)) {
-                let envContent = fs.readFileSync(envPath, 'utf-8');
-                // Remove any existing NATIVE_MODE line
-                envContent = envContent.replace(/^NATIVE_MODE=.*$/m, '');
-                // Add new NATIVE_MODE line
-                envContent += '\n# Run in native mode (no containers)\nNATIVE_MODE=true\n';
-                fs.writeFileSync(envPath, envContent);
-                console.log('   ✓ Updated .env with NATIVE_MODE=true');
-              }
-            }
-          }
-        } else if (imageExists) {
-          console.log('   ℹ Using existing container image');
-          console.log('   ℹ You can rebuild it later with: npm run build-container:sudo');
+          // Use sudo on Linux to avoid permission issues
+          const dockerCmd = isLinux ? 'sudo docker' : 'docker';
+          execSync(`${dockerCmd} build -t qwqnanoclaw-agent:latest .`, {
+            cwd: path.join(process.cwd(), 'container'),
+            stdio: 'inherit',
+          });
+          console.log('   ✓ Container image built successfully');
+          console.log('   ℹ Image name: qwqnanoclaw-agent:latest');
+          console.log('   ℹ You can now run: npm start');
+          clearProgress(); // Installation complete
+        } else {
+          console.log('   ℹ Skipping container build');
+          console.log('   ℹ You can build later with: npm run build-container:sudo');
+          clearProgress(); // Installation complete
         }
         
         // Update .env file

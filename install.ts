@@ -276,7 +276,7 @@ async function main(): Promise<void> {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`\n✗ Installation failed: ${message}`);
     console.error('\nPlease check the error message above and try again.');
-    console.error('If the problem persists, visit: https://github.com/qwibitai/nanoclaw/issues\n');
+    console.error('If the problem persists, visit: https://github.com/AJdreamstore/nanoclaw-qwen-qqbot/issues\n');
     process.exit(1);
   } finally {
     rl.close();
