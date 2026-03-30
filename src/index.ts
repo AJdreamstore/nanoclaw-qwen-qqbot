@@ -484,7 +484,71 @@ function ensureContainerSystemRunning(): void {
   cleanupOrphans();
 }
 
+/**
+ * Check if .env file is properly configured
+ */
+function checkEnvConfiguration(): void {
+  const envPath = path.join(process.cwd(), '.env');
+  
+  if (!fs.existsSync(envPath)) {
+    console.error('\n╔══════════════════════════════════════════════════════════════╗');
+    console.error('║           ERROR: .env file not found!                        ║');
+    console.error('╚══════════════════════════════════════════════════════════════╝\n');
+    console.error('The .env file is missing. Please run the setup wizard first:\n');
+    console.error('  npx tsx setup/index.ts\n');
+    console.error('Or create .env file manually with your credentials.\n');
+    process.exit(1);
+  }
+  
+  const envContent = fs.readFileSync(envPath, 'utf-8');
+  const missingConfig: string[] = [];
+  
+  // Check for QQ Bot configuration
+  const qqAppIdMatch = envContent.match(/^QQ_APP_ID=(.*)$/m);
+  const qqSecretMatch = envContent.match(/^QQ_CLIENT_SECRET=(.*)$/m);
+  
+  if (!qqAppIdMatch || qqAppIdMatch[1] === 'your_qq_app_id') {
+    missingConfig.push('QQ_APP_ID');
+  }
+  if (!qqSecretMatch || qqSecretMatch[1] === 'your_qq_bot_secret') {
+    missingConfig.push('QQ_CLIENT_SECRET');
+  }
+  
+  // Check for DashScope API key
+  const dashscopeMatch = envContent.match(/^DASHSCOPE_API_KEY=(.*)$/m);
+  if (!dashscopeMatch || dashscopeMatch[1] === 'your_alibaba_cloud_api_key') {
+    missingConfig.push('DASHSCOPE_API_KEY');
+  }
+  
+  if (missingConfig.length > 0) {
+    console.error('\n╔══════════════════════════════════════════════════════════════╗');
+    console.error('║     ERROR: .env file is not properly configured!             ║');
+    console.error('╚══════════════════════════════════════════════════════════════╝\n');
+    console.error('The following configuration values are missing or still set to defaults:\n');
+    
+    missingConfig.forEach(key => {
+      console.error(`  ❌ ${key}`);
+    });
+    
+    console.error('\n📝 Please edit the .env file and set these values:\n');
+    console.error('  1. Open .env file in your editor');
+    console.error('  2. Replace the placeholder values with your actual credentials\n');
+    console.error('Example:\n');
+    console.error('  QQ_APP_ID=your_actual_qq_app_id');
+    console.error('  QQ_CLIENT_SECRET=your_actual_qq_client_secret');
+    console.error('  DASHSCOPE_API_KEY=your_actual_dashscope_api_key\n');
+    console.error('📖 For more information, see INSTALL.md\n');
+    process.exit(1);
+  }
+  
+  console.log('✓ .env configuration validated');
+}
+
+
 async function main(): Promise<void> {
+  // Check if .env file is properly configured
+  checkEnvConfiguration();
+  
   ensureContainerSystemRunning();
   await initDatabase();
   logger.info('Database initialized');
