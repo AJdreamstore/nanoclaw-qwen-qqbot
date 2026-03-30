@@ -672,7 +672,14 @@ async function interactiveWizard(): Promise<void> {
     console.log(`   Qwen Code:     ${qwenInstalled ? 'Installed' : 'Not installed'}`);
     console.log(`   agent-browser: ${agentBrowserInstalled ? 'Installed' : 'Not installed'}`);
     console.log(`   Database:      SQLite (embedded)`);
-    console.log(`   Container:     ${containerMode === 'native' ? 'Native mode' : 'Docker mode'}`);
+    
+    // Check NATIVE_MODE from .env file
+    let isNativeMode = false;
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf-8');
+      isNativeMode = envContent.includes('NATIVE_MODE=true');
+    }
+    console.log(`   Container:     ${isNativeMode ? 'Native mode' : 'Docker mode'}`);
     console.log('\n╔══════════════════════════════════════════════════════════════╗');
     console.log('║                   Next Steps                                 ║');
     console.log('╚══════════════════════════════════════════════════════════════╝\n');
