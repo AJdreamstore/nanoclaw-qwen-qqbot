@@ -194,7 +194,6 @@ export function storeMessage(msg: NewMessage): void {
 
   // Update chat metadata
   storeChatMetadata(msg.chat_jid, msg.timestamp, undefined, undefined, undefined);
-  saveDatabase();
 }
 
 /**

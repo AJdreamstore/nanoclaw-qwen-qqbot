@@ -16,6 +16,8 @@ import {
   IDLE_TIMEOUT,
   NATIVE_MODE,
   TIMEZONE,
+  APPROVAL_MODE,
+  QWEN_OUTPUT_FORMAT,
 } from './config.js';
 import { readEnvFile } from './env.js';
 import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
@@ -36,7 +38,6 @@ export interface ContainerInput {
   isMain: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
-  secrets?: Record<string, string>;
 }
 
 export interface ContainerOutput {
@@ -282,8 +283,8 @@ async function runNativeAgent(
 
   // Build qwen code command
   const qwenArgs = [
-    '--auth-type',
-    'openai',
+    '--approval-mode', APPROVAL_MODE,  // From .env config: plan | default | auto-edit | yolo
+    '--output-format', QWEN_OUTPUT_FORMAT,  // From .env config: text | json
   ];
 
   // Use --resume to continue existing session or start new one with --session-id
@@ -324,9 +325,8 @@ async function runNativeAgent(
       logger.info({ group: group.name, sessionId: input.sessionId, sessionFile }, 'Resuming existing Qwen Code session');
       isResumedSession = true;
     } else {
-      // Start new session with same ID
-      qwenArgs.push('--session-id', input.sessionId);
-      logger.info({ group: group.name, sessionId: input.sessionId }, 'Starting new Qwen Code session');
+      // Session file not found, clear session ID to let Qwen Code generate a new one
+      logger.info({ group: group.name, sessionId: input.sessionId }, 'Session file not found, will create new session');
     }
   }
 
@@ -405,7 +405,8 @@ async function runNativeAgent(
       cwd: workingDir,
       env: {
         ...process.env,
-        DASHSCOPE_API_KEY: readSecrets().DASHSCOPE_API_KEY || '',
+        // Qwen Code will read API Key from ~/.qwen/settings.json or ~/.qwen/.env automatically
+        // No need to pass DASHSCOPE_API_KEY explicitly
         // Set QWEN_SYSTEM_MD to override default system prompt (replaces "You are Qwen Code" with custom identity)
         QWEN_SYSTEM_MD: systemMdPath,
       },
@@ -629,12 +630,10 @@ export async function runContainerAgent(
     let stdoutTruncated = false;
     let stderrTruncated = false;
 
-    // Pass secrets via stdin (never written to disk or mounted as files)
-    input.secrets = readSecrets();
+    // Qwen Code reads API Key from ~/.qwen/settings.json automatically
+    // No need to pass secrets via stdin
     container.stdin.write(JSON.stringify(input));
     container.stdin.end();
-    // Remove secrets from input so they don't appear in logs
-    delete input.secrets;
 
     // Streaming output: parse OUTPUT_START/END marker pairs as they arrive
     let parseBuffer = '';

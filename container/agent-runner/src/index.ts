@@ -27,7 +27,6 @@ interface ContainerInput {
   isMain: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
-  secrets?: Record<string, string>;
 }
 
 interface ContainerOutput {
@@ -360,14 +359,9 @@ async function main(): Promise<void> {
 
   fs.mkdirSync(sessionsDir, { recursive: true });
 
+  // Qwen Code reads API Key from ~/.qwen/settings.json automatically
+  // No need to pass secrets from container-runner
   const sdkEnv: Record<string, string | undefined> = {};
-  if (containerInput.secrets) {
-    for (const [key, value] of Object.entries(containerInput.secrets)) {
-      if (value !== undefined) {
-        sdkEnv[key] = value;
-      }
-    }
-  }
 
   let sessionId = containerInput.sessionId;
   let resumeAt: string | undefined;
@@ -378,9 +372,15 @@ async function main(): Promise<void> {
       const entry = index.entries.find(e => e.sessionId === sessionId);
       if (entry) {
         resumeAt = entry.fullPath;
+      } else {
+        // Session ID not found in index, clear it to create a new session
+        log(`Session ${sessionId} not found in index, will create new session`);
+        sessionId = undefined;
       }
     } catch (err) {
       log(`Failed to load session index: ${err instanceof Error ? err.message : String(err)}`);
+      // If index file is corrupted or missing, clear sessionId to create new session
+      sessionId = undefined;
     }
   }
 

@@ -12,6 +12,8 @@ const envConfig = readEnvFile([
   'QQ_APP_ID',
   'QQ_CLIENT_SECRET',
   'NATIVE_MODE',
+  'APPROVAL_MODE',
+  'QWEN_OUTPUT_FORMAT',
 ]);
 
 export const ASSISTANT_NAME =
@@ -20,6 +22,12 @@ export const ASSISTANT_HAS_OWN_NUMBER =
   (process.env.ASSISTANT_HAS_OWN_NUMBER || envConfig.ASSISTANT_HAS_OWN_NUMBER) === 'true';
 export const NATIVE_MODE =
   process.env.NATIVE_MODE === 'true' || envConfig.NATIVE_MODE === 'true';
+
+// Qwen Code configuration
+export const APPROVAL_MODE =
+  process.env.APPROVAL_MODE || envConfig.APPROVAL_MODE || 'auto-edit';
+export const QWEN_OUTPUT_FORMAT =
+  process.env.QWEN_OUTPUT_FORMAT || envConfig.QWEN_OUTPUT_FORMAT || 'text';
 
 export const QQ_CONFIG = {
   appId: process.env.QQ_APP_ID || envConfig.QQ_APP_ID || '',

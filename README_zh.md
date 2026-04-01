@@ -277,7 +277,21 @@ DASHSCOPE_API_KEY=your_api_key         # 阿里云 DashScope API Key
 
 # 运行模式
 NATIVE_MODE=true                       # 原生模式（无需 Docker）
+
+# Qwen Code 高级配置
+APPROVAL_MODE=auto-edit                # 审批模式：plan | default | auto-edit | yolo
+QWEN_OUTPUT_FORMAT=text                # 输出格式：text | json
 ```
+
+**配置说明**：
+- `APPROVAL_MODE`:
+  - `plan`: 只读分析，不修改代码
+  - `default`: 所有操作都需要批准
+  - `auto-edit`: 自动批准文件编辑，Shell 命令需要批准（推荐）
+  - `yolo`: 完全自动化，无需批准（谨慎使用）
+- `QWEN_OUTPUT_FORMAT`:
+  - `text`: 人类可读的纯文本输出（节省 20 倍 Token）
+  - `json`: 结构化 JSON 输出，包含元数据（用量统计、工具调用等）
 
 **注意**：配置完 `.env` 后，运行 `npx tsx setup/index.ts` 完成设置。
 

@@ -257,7 +257,21 @@ DASHSCOPE_API_KEY=your_api_key         # Alibaba Cloud DashScope API Key
 
 # Runtime mode
 NATIVE_MODE=true                       # Native mode (no Docker required)
+
+# Qwen Code advanced configuration
+APPROVAL_MODE=auto-edit                # Approval mode: plan | default | auto-edit | yolo
+QWEN_OUTPUT_FORMAT=text                # Output format: text | json
 ```
+
+**Configuration Details**:
+- `APPROVAL_MODE`:
+  - `plan`: Read-only analysis, no modifications
+  - `default`: Require approval for all operations
+  - `auto-edit`: Auto-approve file edits, require approval for shell commands (recommended)
+  - `yolo`: Fully automated, no approvals (use with caution)
+- `QWEN_OUTPUT_FORMAT`:
+  - `text`: Human-readable plain text output (saves 20x tokens)
+  - `json`: Structured JSON output with metadata (usage stats, tool calls, etc.)
 
 **Note**: After configuring `.env`, run `npx tsx setup/index.ts` to complete the setup.
 
