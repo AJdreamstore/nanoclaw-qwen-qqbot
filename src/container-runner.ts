@@ -594,11 +594,13 @@ export async function runContainerAgent(
 ): Promise<ContainerOutput> {
   const startTime = Date.now();
 
-  // Native mode: run qwen code directly without container isolation
-  if (NATIVE_MODE) {
+  // Native mode OR Qwen Code Sandbox mode: run qwen code on host (or in Qwen-managed sandbox)
+  // Qwen Code Sandbox uses --sandbox flag, not custom container image
+  if (NATIVE_MODE || QWEN_SANDBOX_TYPE !== 'none') {
     return runNativeAgent(group, input, onProcess, startTime, onOutput);
   }
 
+  // Traditional container mode: use custom container image (legacy)
   const groupDir = resolveGroupFolderPath(group.folder);
   fs.mkdirSync(groupDir, { recursive: true });
 
