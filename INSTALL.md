@@ -8,9 +8,12 @@
 - [快速开始](#快速开始)
   - [方式一：自动安装脚本（推荐）](#方式一自动安装脚本推荐)
   - [方式二：手动安装](#方式二手动安装)
+- [安装流程说明](#安装流程说明)
+  - [阶段 1：运行环境准备 (install.sh)](#阶段 1 运行环境准备-installsh)
+  - [阶段 2：程序配置 (setup/index.ts)](#阶段 2 程序配置-setupindexts)
 - [详细安装步骤](#详细安装步骤)
   - [Windows 用户](#windows-用户)
-  - [Linux/macOS用户](#linuxmacos用户)
+  - [Linux/macOS 用户](#linuxmacos 用户)
 - [Qwen Code 配置](#qwen-code-配置)
 - [容器模式配置](#容器模式配置)
 - [Groups 初始化](#groups-初始化)
@@ -111,6 +114,72 @@ bash ./install.sh
 # 如果只能用 sh，也可以（脚本已兼容 POSIX sh）
 sh ./install.sh
 ```
+
+---
+
+## 安装流程说明
+
+安装过程分为两个阶段，职责分离，清晰高效：
+
+### 阶段 1：运行环境准备 (`install.sh`)
+
+**职责**：准备运行环境，确保所有依赖就绪
+
+**执行内容**：
+1. ✅ 检测是否安装 Node.js
+2. ✅ 如果未安装，自动安装 Node.js 22 LTS
+3. ✅ 安装项目依赖 (`npm install`)
+4. ✅ **编译项目** (`npm run build`) ← 重要！
+5. ✅ 创建 `.env` 配置文件
+6. ✅ 配置 Docker Sandbox（可选）
+7. ✅ 询问是否运行配置向导
+
+**为什么先编译？**
+- **早期发现问题**：编译错误在安装阶段就发现
+- **快速失败**：如果编译失败，可以立即修复
+- **职责清晰**：`install.sh` 负责准备运行环境
+
+**输出示例**：
+```
+╔══════════════════════════════════════════════════════════════╗
+║           Building Project / 构建项目                        ║
+╚══════════════════════════════════════════════════════════════╝
+
+🔨 Building project... / 正在构建项目...
+✓ Build successful! / 构建成功！
+```
+
+### 阶段 2：程序配置 (`setup/index.ts`)
+
+**职责**：配置应用程序，初始化数据和群组
+
+**执行内容**：
+1. ✅ 快速验证环境（假设已就绪）
+2. ✅ 检查 `.env` 配置
+3. ✅ 检查 Qwen Code 安装
+4. ✅ 安装 agent-browser（可选）
+5. ✅ 配置数据库
+6. ✅ 注册 QQ 群组
+7. ✅ 配置 Docker Sandbox（如果选择）
+
+**为什么分开？**
+- **职责分离**：环境准备 vs 程序配置
+- **避免重复**：不需要重复检查 Node.js、npm install
+- **灵活配置**：可以单独运行配置步骤
+
+**运行方式**：
+```bash
+# 完整配置向导
+npx tsx setup/index.ts
+
+# 单步配置
+npx tsx setup/index.ts --step environment    # 检查环境
+npx tsx setup/index.ts --step container      # 配置 Docker
+npx tsx setup/index.ts --step groups         # 配置群组
+npx tsx setup/index.ts --step qwen-skills    # 配置 Qwen 技能
+```
+
+---
 
 安装脚本会自动：
 1. ✅ 检测是否安装 Node.js

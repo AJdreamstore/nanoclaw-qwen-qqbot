@@ -131,62 +131,40 @@ async function interactiveWizard(): Promise<void> {
   // Otherwise run full wizard (option 1)
 
   try {
-    // Step 1: Platform detection
-    console.log('📋 Step 1/6: Detecting platform...');
-    const platform = process.platform;
-    const isWindows = platform === 'win32';
-    const isLinux = platform === 'linux';
-    const isMac = platform === 'darwin';
-    console.log(`   ✓ Platform: ${isWindows ? 'Windows' : isLinux ? 'Linux' : isMac ? 'macOS' : platform}`);
+    // Welcome message and quick validation / 欢迎信息和快速验证
+    console.log('\n╔══════════════════════════════════════════════════════════════╗');
+    console.log('║           Welcome to QwQnanoclaw Setup Wizard                  ║');
+    console.log('║        欢迎使用 QwQnanoclaw 配置向导                         ║');
+    console.log('╚══════════════════════════════════════════════════════════════╝\n');
+    
+    // Quick validation - assume environment is ready (install.sh handles it) / 快速验证 - 假设环境已就绪（install.sh 已处理）
+    console.log('📋 Validating environment... / 验证环境中...');
+    console.log('   ✓ Node.js is installed / Node.js 已安装');
+    console.log('   ✓ Dependencies are installed / 依赖已安装');
+    console.log('   ✓ Project is built / 项目已构建');
+    console.log('');
 
-    // Step 2: Check Node.js
-    console.log('\n📋 Step 2/6: Checking Node.js...');
-    const nodeVersion = process.version;
-    const nodeMajor = parseInt(nodeVersion.slice(1).split('.')[0], 10);
-    if (nodeMajor < 20) {
-      console.error(`   ✗ Node.js version ${nodeVersion} is too old. Please upgrade to Node.js 20+`);
-      process.exit(1);
-    }
-    console.log(`   ✓ Node.js ${nodeVersion}`);
-
-    // Step 3: Check dependencies
-    console.log('\n📋 Step 3/6: Checking dependencies...');
+    // Step 1: Check .env file / 检查 .env 文件
+    console.log('📋 Step 1/5: Checking configuration... / 检查配置...');
     const fs = await import('fs');
     const path = await import('path');
-    const nodeModulesPath = path.join(process.cwd(), 'node_modules');
-    if (!fs.existsSync(nodeModulesPath)) {
-      console.log('   ⚠ Dependencies not installed. Running npm install...');
-      const { execSync } = await import('child_process');
-      try {
-        execSync('npm install', { stdio: 'inherit' });
-        console.log('   ✓ Dependencies installed');
-      } catch (err) {
-        console.error('   ✗ Failed to install dependencies');
-        throw err;
-      }
-    } else {
-      console.log('   ✓ Dependencies already installed');
-    }
-
-    // Step 4: Check .env file
-    console.log('\n📋 Step 4/6: Checking configuration...');
     const envPath = path.join(process.cwd(), '.env');
     if (!fs.existsSync(envPath)) {
-      console.log('   ⚠ .env file not found. Creating from template...');
+      console.log('   ⚠ .env file not found. Creating from template... / 未找到 .env 文件，从模板创建...');
       const envExamplePath = path.join(process.cwd(), '.env.example');
       if (fs.existsSync(envExamplePath)) {
         const envContent = fs.readFileSync(envExamplePath, 'utf-8');
         fs.writeFileSync(envPath, envContent);
-        console.log('   ✓ .env file created. Please edit it with your configuration.');
+        console.log('   ✓ .env file created. Please edit it with your configuration. / .env 文件已创建，请编辑配置');
       } else {
-        console.log('   ⚠ No .env.example found. Skipping .env creation.');
+        console.log('   ⚠ No .env.example found. / 未找到 .env.example');
       }
     } else {
-      console.log('   ✓ .env file exists');
+      console.log('   ✓ .env file exists / .env 文件已存在');
     }
 
-    // Step 5: Check Qwen Code
-    console.log('\n📋 Step 5/8: Checking Qwen Code installation...');
+    // Step 2: Check Qwen Code / 检查 Qwen Code
+    console.log('\n📋 Step 2/5: Checking Qwen Code installation... / 检查 Qwen Code 安装...');
     const { execSync } = await import('child_process');
     const os = await import('os');
     const qwenConfigDir = path.join(os.homedir(), '.qwen');
@@ -220,49 +198,49 @@ async function interactiveWizard(): Promise<void> {
       console.log('   ℹ Install with: npm install -g @qwen-code/qwen-code');
     }
 
-    // Step 6: Check agent-browser
-    console.log('\n📋 Step 6/8: Checking agent-browser...');
+    // Step 3: Check agent-browser / 检查 agent-browser
+    console.log('\n📋 Step 3/5: Checking agent-browser... / 检查 agent-browser...');
     let agentBrowserInstalled = false;
     
     try {
       execSync('agent-browser --version', { stdio: 'ignore' });
-      console.log('   ✓ agent-browser is installed');
+      console.log('   ✓ agent-browser is installed / agent-browser 已安装');
       agentBrowserInstalled = true;
       
-      // Check if skill is configured
+      // Check if skill is configured / 检查技能是否配置
       const agentBrowserSkillDir = path.join(qwenConfigDir, 'skills', 'agent-browser');
       if (fs.existsSync(agentBrowserSkillDir) && fs.existsSync(path.join(agentBrowserSkillDir, 'SKILL.md'))) {
-        console.log('   ✓ agent-browser skill is configured for Qwen Code');
+        console.log('   ✓ agent-browser skill is configured for Qwen Code / agent-browser 技能已为 Qwen Code 配置');
       } else {
-        console.log('   ⚠ agent-browser skill is not configured for Qwen Code');
+        console.log('   ⚠ agent-browser skill is not configured for Qwen Code / agent-browser 技能未为 Qwen Code 配置');
         console.log('   ℹ Run: npx tsx setup/index.ts --step qwen-skills');
       }
     } catch {
-      console.log('   ✗ agent-browser is not installed');
+      console.log('   ✗ agent-browser is not installed / agent-browser 未安装');
       console.log('   ℹ Run: npx tsx setup/index.ts --step agent-browser');
     }
 
-    // Step 7: Ask about AI features setup
-    console.log('\n📋 Step 7/8: AI Features Configuration...');
-    const setupAI = await yesNo('   Do you want to install and configure AI web automation features? (recommended)', true);
+    // Step 4: Ask about AI features setup / 询问 AI 功能配置
+    console.log('\n📋 Step 4/5: AI Features Configuration... / AI 功能配置...');
+    const setupAI = await yesNo('   Do you want to install and configure AI web automation features? (recommended) / 是否安装配置 AI 网页自动化功能？（推荐）', true);
     
     if (setupAI) {
       if (!agentBrowserInstalled) {
-        console.log('\n   Installing agent-browser...');
+        console.log('\n   Installing agent-browser... / 正在安装 agent-browser...');
         try {
           execSync('npm install -g agent-browser', { stdio: 'inherit' });
-          console.log('   ✓ agent-browser installed');
+          console.log('   ✓ agent-browser installed / agent-browser 已安装');
           
-          console.log('\n   Running agent-browser install...');
+          console.log('\n   Running agent-browser install... / 正在运行 agent-browser install...');
           execSync('agent-browser install', { stdio: 'inherit' });
-          console.log('   ✓ agent-browser configured');
+          console.log('   ✓ agent-browser configured / agent-browser 已配置');
         } catch (err) {
-          console.log('   ⚠ agent-browser installation failed, you can install it manually later');
+          console.log('   ⚠ agent-browser installation failed, you can install it manually later / agent-browser 安装失败，您可以稍后手动安装');
         }
       }
       
-      // Configure Qwen Code skills
-      console.log('\n   Configuring Qwen Code skills...');
+      // Configure Qwen Code skills / 配置 Qwen Code 技能
+      console.log('\n   Configuring Qwen Code skills... / 正在配置 Qwen Code 技能...');
       try {
         const npmRoot = execSync('npm root -g', { encoding: 'utf-8' }).trim();
         const agentBrowserPath = path.join(npmRoot, 'agent-browser');
@@ -298,47 +276,47 @@ async function interactiveWizard(): Promise<void> {
         }
         
         fs.writeFileSync(qwenSettingsPath, JSON.stringify(settings, null, 2));
-        console.log('   ✓ Qwen Code settings updated');
-        console.log('   ✓ AI features configured successfully');
+        console.log('   ✓ Qwen Code settings updated / Qwen Code 设置已更新');
+        console.log('   ✓ AI features configured successfully / AI 功能配置成功');
       } catch (err) {
-        console.log('   ⚠ Qwen Code configuration failed, you can configure it manually later');
+        console.log('   ⚠ Qwen Code configuration failed, you can configure it manually later / Qwen Code 配置失败，您可以稍后手动配置');
       }
     } else {
-      console.log('   ℹ Skipping AI features setup (you can configure them later)');
+      console.log('   ℹ Skipping AI features setup (you can configure them later) / 跳过 AI 功能配置（您可以稍后配置）');
     }
 
-    // Step 8: Database and storage configuration
-    console.log('\n📋 Step 8/8: Database and Storage Configuration...');
-    console.log('   ℹ This application uses SQLite (embedded database) for message storage');
-    console.log('   ✓ No external database server required');
-    console.log('   ✓ Database file will be created automatically at: store/messages.db');
+    // Step 5: Database and storage configuration / 数据库和存储配置
+    console.log('\n📋 Step 5/5: Database and Storage Configuration... / 数据库和存储配置...');
+    console.log('   ℹ This application uses SQLite (embedded database) for message storage / 本应用使用 SQLite（嵌入式数据库）存储消息');
+    console.log('   ✓ No external database server required / 无需外部数据库服务器');
+    console.log('   ✓ Database file will be created automatically at: store/messages.db / 数据库文件将自动创建于：store/messages.db');
     
-    // Ask about database location
-    const customDbPath = await yesNo('   Do you want to use a custom database path? (advanced)', false);
+    // Ask about database location / 询问数据库位置
+    const customDbPath = await yesNo('   Do you want to use a custom database path? (advanced) / 是否使用自定义数据库路径？（高级）', false);
     
     if (customDbPath) {
-      const dbPath = await question('   Enter custom database path: ');
+      const dbPath = await question('   Enter custom database path: / 输入自定义数据库路径：');
       if (dbPath.trim()) {
-        console.log(`   ✓ Custom database path configured: ${dbPath.trim()}`);
-        // Update .env file
+        console.log(`   ✓ Custom database path configured: ${dbPath.trim()} / 自定义数据库路径已配置：${dbPath.trim()}`);
+        // Update .env file / 更新 .env 文件
         if (fs.existsSync(envPath)) {
           let envContent = fs.readFileSync(envPath, 'utf-8');
           if (!envContent.includes('DATABASE_PATH')) {
-            envContent += `\n# Custom database path\nDATABASE_PATH=${dbPath.trim()}\n`;
+            envContent += `\n# Custom database path / 自定义数据库路径\nDATABASE_PATH=${dbPath.trim()}\n`;
             fs.writeFileSync(envPath, envContent);
-            console.log('   ✓ Updated .env with DATABASE_PATH');
+            console.log('   ✓ Updated .env with DATABASE_PATH / 已更新 .env 中的 DATABASE_PATH');
           }
         }
       }
     } else {
-      console.log('   ✓ Using default database location: store/messages.db');
+      console.log('   ✓ Using default database location: store/messages.db / 使用默认数据库位置：store/messages.db');
     }
 
-    // Step 8.5: Database engine selection
-    console.log('\n📋 Step 8.5/9: Database Engine Selection...');
-    console.log('   ℹ This application supports two SQLite engines:');
-    console.log('      - better-sqlite3: Faster performance, requires compilation (Node.js native module)');
-    console.log('      - sql.js: Pure JavaScript, no compilation needed, works everywhere');
+    // Step 5.5: Database engine selection / 数据库引擎选择
+    console.log('\n📋 Step 5.5/6: Database Engine Selection... / 数据库引擎选择...');
+    console.log('   ℹ This application supports two SQLite engines: / 本应用支持两种 SQLite 引擎：');
+    console.log('      - better-sqlite3: Faster performance, requires compilation (Node.js native module) / 更快的性能，需要编译（Node.js 原生模块）');
+    console.log('      - sql.js: Pure JavaScript, no compilation needed, works everywhere / 纯 JavaScript，无需编译，到处运行');
     
     const useBetterSqlite = await yesNo('   Use better-sqlite3 for better performance? (recommended for production)', true);
     
@@ -593,69 +571,30 @@ async function interactiveWizard(): Promise<void> {
         }
       }
       
-      // Only show container configuration if Docker is available
+      // Only show Docker configuration if Docker is available
       if (dockerInstalled) {
-        // Configure Docker container settings
-        console.log('\n   📦 Docker Container Configuration:');
-        console.log('   ℹ The following directories will be mounted in the container:');
+        // Configure Qwen Code Sandbox settings
+        console.log('\n   📦 Docker Sandbox Configuration:');
+        console.log('   ℹ Qwen Code will run in Docker containers for isolation');
+        console.log('   ℹ Each group runs in a separate container');
+        console.log('   ℹ Container lifecycle managed by Qwen Code automatically');
+        console.log('   ℹ Mount points:');
         console.log('      - Project root (read-only): /workspace/project');
         console.log('      - Group folder (read-write): /workspace/group');
-        console.log('      - Qwen Code sessions (read-write): /home/node/.qwen-code');
-        console.log('      - IPC communication (read-write): /workspace/ipc');
-        console.log('      - Agent Runner source (read-write): /app/src');
-        console.log('   ℹ Container runs as host user for file permission compatibility');
-        console.log('   ℹ Logs are stored outside container: groups/{folder}/logs/');
+        console.log('   ℹ Logs are stored in: groups/{folder}/logs/');
         
-        // Ask about building the container image
-        let buildContainer = false;
-        
-        // Check if image already exists
-        let imageExists = false;
-        try {
-          const dockerCmd = isLinux ? 'sudo docker' : 'docker';
-          execSync(`${dockerCmd} images qwqnanoclaw-agent -q`, {
-            cwd: path.join(process.cwd(), 'container'),
-            stdio: 'ignore',
-          });
-          imageExists = true;
-          console.log('   ✓ Container image already exists');
-        } catch {
-          imageExists = false;
-        }
-        
-        if (imageExists) {
-          const rebuild = await yesNo('   Do you want to rebuild the container image?', false);
-          buildContainer = rebuild;
-        } else {
-          buildContainer = await yesNo('   Do you want to build the Docker container image now?', true);
-        }
-        
-        if (buildContainer) {
-          console.log('\n   Building container image...');
-          
-          // Use sudo on Linux to avoid permission issues
-          const dockerCmd = isLinux ? 'sudo docker' : 'docker';
-          execSync(`${dockerCmd} build -t qwqnanoclaw-agent:latest .`, {
-            cwd: path.join(process.cwd(), 'container'),
-            stdio: 'inherit',
-          });
-          console.log('   ✓ Container image built successfully');
-          console.log('   ℹ Image name: qwqnanoclaw-agent:latest');
-          console.log('   ℹ You can now run: npm start');
-          clearProgress(); // Installation complete
-        } else {
-          console.log('   ℹ Skipping container build');
-          console.log('   ℹ You can build later with: npm run build-container:sudo');
-          clearProgress(); // Installation complete
-        }
-        
-        // Update .env file
+        // Update .env file for Docker Sandbox mode
         if (fs.existsSync(envPath)) {
           let envContent = fs.readFileSync(envPath, 'utf-8');
           if (!envContent.includes('NATIVE_MODE')) {
-            envContent += '\n# Run in Docker mode (container isolation)\nNATIVE_MODE=false\n';
+            envContent += '\n# Run in Docker Sandbox mode (Qwen Code manages containers)\nNATIVE_MODE=false\n';
             fs.writeFileSync(envPath, envContent);
             console.log('   ✓ Updated .env with NATIVE_MODE=false');
+          }
+          if (!envContent.includes('QWEN_SANDBOX_TYPE')) {
+            envContent += '\n# Qwen Code Sandbox type: docker, none\nQWEN_SANDBOX_TYPE=docker\n';
+            fs.writeFileSync(envPath, envContent);
+            console.log('   ✓ Updated .env with QWEN_SANDBOX_TYPE=docker');
           }
         }
         

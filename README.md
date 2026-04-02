@@ -51,6 +51,13 @@
 - Supports multiple data sources: QQ Bot, WhatsApp (optional)
 - Automatic database initialization and migration
 
+### 🌍 **Cross-Platform Compatibility**
+- **Windows**: PowerShell and CMD support
+- **Linux**: Bash shell with Docker integration
+- **macOS**: Full support with Docker Desktop
+- **Path Handling**: Automatic platform-specific path resolution
+- **Command Execution**: Platform-aware command lookup (shell integration on Unix systems)
+
 ---
 
 ## 🚀 Quick Start
@@ -90,47 +97,29 @@ Get API Key from [Alibaba Cloud DashScope](https://dashscope.console.aliyun.com/
 ./install.sh
 ```
 
-### 3. Configure
+The installer will:
+- ✅ Check and install Node.js 20+ if needed
+- ✅ Install project dependencies
+- ✅ Build the project (compile TypeScript)
+- ✅ Create `.env` file from template
+- ✅ Configure Docker Sandbox (optional)
+- ✅ Run setup wizard (optional)
 
-Edit `.env` file with your credentials:
-```bash
-QQ_APP_ID=your_qq_bot_app_id
-QQ_CLIENT_SECRET=your_qq_bot_secret
-DASHSCOPE_API_KEY=your_alibaba_cloud_api_key
-```
+**What happens during installation:**
 
-### 4. Run Setup
+1. **Environment Setup** (`install.sh`):
+   - Checks Node.js version
+   - Installs dependencies (`npm install`)
+   - Builds project (`npm run build`)
+   - Creates `.env` file
+   - Configures Docker Sandbox mode
 
-```bash
-npx tsx setup/index.ts
-```
-
-This will:
-- ✅ Check Node.js and dependencies
-- ✅ Verify Qwen Code installation
-- ✅ Create necessary directories
-- ✅ Configure container mode (native/Docker)
-- ✅ Initialize database
-
-### 5. Configure Groups
-
-```bash
-# Interactive group setup wizard
-npx tsx setup/index.ts --step groups-interactive
-```
-
-Follow the wizard to:
-- Set up main group (admin channel)
-- Configure group JID and name
-- Set trigger phrase (default: @Andy)
-
-### 6. Start
-
-```bash
-npm start
-```
-
-Then chat in your QQ group: `@AI Assistant hello!`
+2. **Application Configuration** (`setup/index.ts`):
+   - Validates environment
+   - Checks Qwen Code installation
+   - Configures AI features (agent-browser)
+   - Sets up database
+   - Registers QQ groups
 
 ---
 
@@ -476,8 +465,11 @@ Add extra access directories for groups:
 # Development mode
 npm run dev
 
-# Build project
+# Build project (compile TypeScript)
 npm run build
+
+# Install dependencies and build (fresh install)
+npm install && npm run build
 
 # Initialize project (create directories and default configs)
 npm run init
@@ -503,6 +495,41 @@ sqlite3 store/messages.db
 # View logs
 tail -f groups/main/logs/*.log
 ```
+
+### Execution Modes
+
+**Native Mode** (default):
+```bash
+# .env configuration
+NATIVE_MODE=true
+QWEN_SANDBOX_TYPE=none
+```
+- Runs Qwen Code directly on host
+- No container isolation
+- Faster startup
+- Recommended for: Development/testing
+
+**Docker Sandbox Mode**:
+```bash
+# .env configuration
+NATIVE_MODE=false
+QWEN_SANDBOX_TYPE=docker
+QWEN_SANDBOX_WORKSPACE=/workspace/group
+```
+- Qwen Code runs in Docker containers
+- Each group has isolated container
+- Container lifecycle managed by Qwen Code
+- Recommended for: Production environments
+
+**Traditional Container Mode** (legacy):
+```bash
+# .env configuration
+NATIVE_MODE=false
+QWEN_SANDBOX_TYPE=none
+```
+- Uses custom container image `qwqnanoclaw-agent:latest`
+- Requires manual container build
+- Not recommended for new installations
 
 ### Troubleshooting
 

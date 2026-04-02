@@ -45,11 +45,18 @@
 - 创建自定义技能满足特定需求
 - 技能在所有群组间共享
 
-### � **简易安装与配置**
+###  **简易安装与配置**
 - 一键安装器支持 Windows、macOS、Linux
 - 交互式配置向导引导完成设置
 - 支持多种数据源：QQ Bot、WhatsApp（可选）
 - 自动数据库初始化和迁移
+
+### 🌍 **跨平台兼容**
+- **Windows**: 支持 PowerShell 和 CMD
+- **Linux**: Bash shell，集成 Docker
+- **macOS**: 完整支持 Docker Desktop
+- **路径处理**: 自动平台特定路径解析
+- **命令执行**: 平台感知命令查找（Unix 系统 shell 集成）
 
 ---
 
@@ -90,47 +97,29 @@ npx qwen-code setup
 ./install.sh
 ```
 
-### 3. 配置
+安装脚本将会：
+- ✅ 检查并安装 Node.js 20+（如果需要）
+- ✅ 安装项目依赖
+- ✅ **编译项目**（编译 TypeScript）
+- ✅ 从模板创建 `.env` 文件
+- ✅ 配置 Docker Sandbox（可选）
+- ✅ 运行配置向导（可选）
 
-编辑 `.env` 文件填入您的凭证：
-```bash
-QQ_APP_ID=你的_qq_bot_app_id
-QQ_CLIENT_SECRET=你的_qq_bot_secret
-DASHSCOPE_API_KEY=你的阿里云_api_key
-```
+**安装过程中会发生什么：**
 
-### 4. 运行配置
+1. **环境准备** (`install.sh`)：
+   - 检查 Node.js 版本
+   - 安装依赖 (`npm install`)
+   - **编译项目** (`npm run build`) ← 新增！
+   - 创建 `.env` 文件
+   - 配置 Docker Sandbox 模式
 
-```bash
-npx tsx setup/index.ts
-```
-
-这将：
-- ✅ 检查 Node.js 和依赖
-- ✅ 验证 Qwen Code 安装
-- ✅ 创建必要的目录
-- ✅ 配置容器模式（原生/Docker）
-- ✅ 初始化数据库
-
-### 5. 配置群组
-
-```bash
-# 交互式群组配置向导
-npx tsx setup/index.ts --step groups-interactive
-```
-
-跟随向导：
-- 设置主群组（管理员频道）
-- 配置群组 JID 和名称
-- 设置触发词（默认：@Andy）
-
-### 6. 启动
-
-```bash
-npm start
-```
-
-然后在 QQ 群中聊天：`@AI 助手 你好！`
+2. **应用程序配置** (`setup/index.ts`)：
+   - 验证环境（假设已就绪）
+   - 检查 Qwen Code 安装
+   - 配置 AI 功能（agent-browser）
+   - 设置数据库
+   - 注册 QQ 群组
 
 ---
 
@@ -492,8 +481,11 @@ export const QQ_CONFIG = {
 # 开发模式
 npm run dev
 
-# 构建项目
+# 构建项目（编译 TypeScript）
 npm run build
+
+# 安装依赖并构建（全新安装）
+npm install && npm run build
 
 # 初始化项目（创建目录和默认配置）
 npm run init
@@ -519,6 +511,41 @@ sqlite3 store/messages.db
 # 查看日志
 tail -f groups/main/logs/*.log
 ```
+
+### 执行模式
+
+**原生模式**（默认）：
+```bash
+# .env 配置
+NATIVE_MODE=true
+QWEN_SANDBOX_TYPE=none
+```
+- 直接在宿主机运行 Qwen Code
+- 无容器隔离
+- 启动更快
+- 推荐用于：开发/测试环境
+
+**Docker Sandbox 模式**：
+```bash
+# .env 配置
+NATIVE_MODE=false
+QWEN_SANDBOX_TYPE=docker
+QWEN_SANDBOX_WORKSPACE=/workspace/group
+```
+- Qwen Code 在 Docker 容器中运行
+- 每个群组有独立的容器
+- 容器生命周期由 Qwen Code 自动管理
+- 推荐用于：生产环境
+
+**传统容器模式**（遗留）：
+```bash
+# .env 配置
+NATIVE_MODE=false
+QWEN_SANDBOX_TYPE=none
+```
+- 使用自定义容器镜像 `qwqnanoclaw-agent:latest`
+- 需要手动构建容器
+- 不推荐新安装使用
 
 ### 故障排除
 

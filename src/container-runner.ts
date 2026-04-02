@@ -416,6 +416,7 @@ async function runNativeAgent(
     }, 'Starting Qwen Code process with spawn');
 
     // Use spawn with full path to node executable
+    // On Linux/macOS, use shell: true to allow command lookup in PATH
     const child = spawn(process.execPath, [qwenCliPath, ...argsWithoutPromptFlag], {
       cwd: workingDir,
       env: {
@@ -426,6 +427,7 @@ async function runNativeAgent(
         QWEN_SYSTEM_MD: systemMdPath,
       },
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell: process.platform !== 'win32', // Enable shell on Linux/macOS for PATH lookup
     });
 
     onProcess(child, `native-${group.folder}`);
