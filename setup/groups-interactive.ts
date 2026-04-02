@@ -56,6 +56,7 @@ export async function run(_args: string[]): Promise<void> {
     }
     
     const db = new Database(dbPath);
+    await db.initialize();
     console.log('   ✓ 数据库已连接\n');
     
     // Ask for operation mode
