@@ -223,20 +223,25 @@ else
         if command -v jq &> /dev/null; then
             # Use jq if available
             jq '.tools.experimental.skills = true | .tools.allowed = (.tools.allowed // []) + ["web_fetch", "agent-browser"]' "$QWEN_SETTINGS" > "$QWEN_SETTINGS.tmp" && mv "$QWEN_SETTINGS.tmp" "$QWEN_SETTINGS"
+            echo "✓ Qwen Code 设置已更新 (使用 jq)"
         else
-            # Fallback: simple text replacement
-            echo "ℹ 未找到 jq，手动更新设置"
-            echo "  请确保 ~/.qwen/settings.json 包含："
-            echo "  {"
-            echo "    \"tools\": {"
-            echo "      \"experimental\": {"
-            echo "        \"skills\": true"
-            echo "      },"
-            echo "      \"allowed\": [\"web_fetch\", \"agent-browser\"]"
-            echo "    }"
-            echo "  }"
+            # Fallback: use sed for simple replacement
+            echo "ℹ 未找到 jq，使用备用方法更新设置"
+            # Create a backup
+            cp "$QWEN_SETTINGS" "$QWEN_SETTINGS.bak"
+            # Use Node.js to update JSON (more reliable)
+            node -e "
+const fs = require('fs');
+const settings = JSON.parse(fs.readFileSync('$QWEN_SETTINGS', 'utf-8'));
+if (!settings.tools) settings.tools = {};
+if (!settings.tools.experimental) settings.tools.experimental = {};
+settings.tools.experimental.skills = true;
+if (!settings.tools.allowed) settings.tools.allowed = [];
+if (!settings.tools.allowed.includes('web_fetch')) settings.tools.allowed.push('web_fetch');
+if (!settings.tools.allowed.includes('agent-browser')) settings.tools.allowed.push('agent-browser');
+fs.writeFileSync('$QWEN_SETTINGS', JSON.stringify(settings, null, 2));
+" && echo "✓ Qwen Code 设置已更新 (使用 Node.js)" || echo "⚠ 自动更新失败，请手动更新"
         fi
-        echo "✓ Qwen Code 设置已更新"
     else
         # Create settings.json
         cat > "$QWEN_SETTINGS" << EOF
