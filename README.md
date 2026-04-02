@@ -258,12 +258,33 @@ DASHSCOPE_API_KEY=your_api_key         # Alibaba Cloud DashScope API Key
 # Runtime mode
 NATIVE_MODE=true                       # Native mode (no Docker required)
 
+# Qwen Code Sandbox configuration (optional, for Docker isolation)
+# QWEN_SANDBOX_TYPE=docker            # docker | apple-container | none
+# QWEN_SANDBOX_WORKSPACE=/workspace/group
+
 # Qwen Code advanced configuration
 APPROVAL_MODE=auto-edit                # Approval mode: plan | default | auto-edit | yolo
 QWEN_OUTPUT_FORMAT=text                # Output format: text | json
+
+# QQ Bot advanced configuration
+# QQ_HEARTBEAT_INTERVAL=45000          # Heartbeat interval in ms, 0=use server default
 ```
 
 **Configuration Details**:
+- `NATIVE_MODE`:
+  - `true`: Run agents directly on host system (no Docker required)
+  - `false`: Use container isolation (requires Docker Desktop)
+- `QWEN_SANDBOX_TYPE` (Optional, for enhanced isolation):
+  - `docker`: Use Docker containers for agent isolation (recommended for production)
+  - `apple-container`: Use Apple Container on macOS
+  - `none`: No sandbox, run directly on host (same as `NATIVE_MODE=true`)
+  - **How it works**: When enabled, Qwen Code runs inside a Docker container with isolated filesystem access. The agent can only see mounted directories:
+    - Main Group: Project root (read-only) + group directory (read-write)
+    - Regular Groups: Group directory (read-write) + global directory (read-only)
+  - **File synchronization**: Files created inside the container are automatically synced to the host via Docker volume mounts
+  - **Security benefit**: Even if the agent executes dangerous commands, they only affect the container, not your host system
+- `QWEN_SANDBOX_WORKSPACE`:
+  - Working directory path inside the container (default: `/workspace/group`)
 - `APPROVAL_MODE`:
   - `plan`: Read-only analysis, no modifications
   - `default`: Require approval for all operations
@@ -272,6 +293,12 @@ QWEN_OUTPUT_FORMAT=text                # Output format: text | json
 - `QWEN_OUTPUT_FORMAT`:
   - `text`: Human-readable plain text output (saves 20x tokens)
   - `json`: Structured JSON output with metadata (usage stats, tool calls, etc.)
+- `QQ_HEARTBEAT_INTERVAL`:
+  - Heartbeat interval in milliseconds, controls QQ Bot heartbeat frequency
+  - Server default is typically 45000ms (45 seconds)
+  - Recommended range: 30000-60000ms (30-60 seconds)
+  - Set to `0` to use server default
+  - **Lower heartbeat frequency reduces network requests but may affect connection stability**
 
 **Note**: After configuring `.env`, run `npx tsx setup/index.ts` to complete the setup.
 

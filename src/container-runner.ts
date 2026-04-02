@@ -18,6 +18,8 @@ import {
   TIMEZONE,
   APPROVAL_MODE,
   QWEN_OUTPUT_FORMAT,
+  QWEN_SANDBOX_TYPE,
+  QWEN_SANDBOX_WORKSPACE,
 } from './config.js';
 import { readEnvFile } from './env.js';
 import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
@@ -282,10 +284,23 @@ async function runNativeAgent(
   const workingDir = resolveGroupFolderPath(group.folder);
 
   // Build qwen code command
-  const qwenArgs = [
-    '--approval-mode', APPROVAL_MODE,  // From .env config: plan | default | auto-edit | yolo
-    '--output-format', QWEN_OUTPUT_FORMAT,  // From .env config: text | json
-  ];
+  const qwenArgs: string[] = [];
+
+  // Add Sandbox parameters if enabled
+  if (!NATIVE_MODE && QWEN_SANDBOX_TYPE !== 'none') {
+    qwenArgs.push('--sandbox', QWEN_SANDBOX_TYPE);
+    qwenArgs.push('--sandbox-workspace', QWEN_SANDBOX_WORKSPACE);
+    
+    logger.info({ 
+      sandboxType: QWEN_SANDBOX_TYPE,
+      workspace: QWEN_SANDBOX_WORKSPACE,
+      nativeMode: NATIVE_MODE
+    }, 'Using Qwen Code Sandbox');
+  }
+
+  // Add approval mode and output format
+  qwenArgs.push('--approval-mode', APPROVAL_MODE);  // From .env config: plan | default | auto-edit | yolo
+  qwenArgs.push('--output-format', QWEN_OUTPUT_FORMAT);  // From .env config: text | json
 
   // Use --resume to continue existing session or start new one with --session-id
   // Qwen Code stores sessions in ~/.qwen/projects/<cwd-sanitized>/chats/<sessionId>.jsonl

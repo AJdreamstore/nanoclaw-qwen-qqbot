@@ -14,6 +14,9 @@ const envConfig = readEnvFile([
   'NATIVE_MODE',
   'APPROVAL_MODE',
   'QWEN_OUTPUT_FORMAT',
+  'QQ_HEARTBEAT_INTERVAL',
+  'QWEN_SANDBOX_TYPE',
+  'QWEN_SANDBOX_WORKSPACE',
 ]);
 
 export const ASSISTANT_NAME =
@@ -28,6 +31,18 @@ export const APPROVAL_MODE =
   process.env.APPROVAL_MODE || envConfig.APPROVAL_MODE || 'auto-edit';
 export const QWEN_OUTPUT_FORMAT =
   process.env.QWEN_OUTPUT_FORMAT || envConfig.QWEN_OUTPUT_FORMAT || 'text';
+
+// Qwen Code Sandbox configuration (for Docker isolation)
+export const QWEN_SANDBOX_TYPE =
+  process.env.QWEN_SANDBOX_TYPE || envConfig.QWEN_SANDBOX_TYPE || 'none';
+export const QWEN_SANDBOX_WORKSPACE =
+  process.env.QWEN_SANDBOX_WORKSPACE || envConfig.QWEN_SANDBOX_WORKSPACE || '/workspace/group';
+
+// QQ Bot configuration
+export const QQ_HEARTBEAT_INTERVAL = parseInt(
+  process.env.QQ_HEARTBEAT_INTERVAL || envConfig.QQ_HEARTBEAT_INTERVAL || '0',
+  10,
+); // 0 = use server default
 
 export const QQ_CONFIG = {
   appId: process.env.QQ_APP_ID || envConfig.QQ_APP_ID || '',

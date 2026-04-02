@@ -7,7 +7,7 @@ import {
   NewMessage,
 } from '../types.js';
 import { logger } from '../logger.js';
-import { QQ_CONFIG, ASSISTANT_NAME } from '../config.js';
+import { QQ_CONFIG, ASSISTANT_NAME, QQ_HEARTBEAT_INTERVAL } from '../config.js';
 
 // Import registerGroup function to dynamically register QQ chats
 let registerGroupCallback: ((jid: string, group: RegisteredGroup) => void) | null = null;
@@ -204,8 +204,13 @@ export class QQChannel implements Channel {
               accessToken = await this.getAccessToken();
             }
             
-            // Start heartbeat immediately after receiving Hello
-            const heartbeatInterval = (message.d as any)?.heartbeat_interval;
+            // Start heartbeat - use configured interval or server default
+            let heartbeatInterval = (message.d as any)?.heartbeat_interval;
+            if (QQ_HEARTBEAT_INTERVAL > 0) {
+              // Override with configured value
+              heartbeatInterval = QQ_HEARTBEAT_INTERVAL;
+              logger.info(`Using configured heartbeat interval: ${QQ_HEARTBEAT_INTERVAL}ms`);
+            }
             if (heartbeatInterval) {
               this.startHeartbeat(heartbeatInterval);
             }

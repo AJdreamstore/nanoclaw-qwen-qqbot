@@ -278,12 +278,33 @@ DASHSCOPE_API_KEY=your_api_key         # 阿里云 DashScope API Key
 # 运行模式
 NATIVE_MODE=true                       # 原生模式（无需 Docker）
 
+# Qwen Code Sandbox 配置（可选，用于 Docker 隔离）
+# QWEN_SANDBOX_TYPE=docker            # docker | apple-container | none
+# QWEN_SANDBOX_WORKSPACE=/workspace/group
+
 # Qwen Code 高级配置
 APPROVAL_MODE=auto-edit                # 审批模式：plan | default | auto-edit | yolo
 QWEN_OUTPUT_FORMAT=text                # 输出格式：text | json
+
+# QQ Bot 高级配置
+# QQ_HEARTBEAT_INTERVAL=45000          # 心跳间隔（毫秒），0=使用服务器默认值
 ```
 
 **配置说明**：
+- `NATIVE_MODE`:
+  - `true`: 直接在宿主机上运行（无需 Docker）
+  - `false`: 使用容器隔离（需要 Docker Desktop）
+- `QWEN_SANDBOX_TYPE`（可选，增强隔离）：
+  - `docker`: 使用 Docker 容器进行 agent 隔离（推荐生产环境使用）
+  - `apple-container`: 在 macOS 上使用 Apple Container
+  - `none`: 无沙箱，直接在宿主机运行（与 `NATIVE_MODE=true` 相同）
+  - **工作原理**：启用后，Qwen Code 在 Docker 容器内运行，具有隔离的文件系统访问权限。Agent 只能看到挂载的目录：
+    - 主群组：项目根目录（只读）+ 群组目录（可写）
+    - 普通群组：群组目录（可写）+ 全局目录（只读）
+  - **文件同步**：容器内创建的文件通过 Docker 卷挂载自动同步到宿主机
+  - **安全优势**：即使 Agent 执行危险命令，也只会影响容器，不会影响宿主机系统
+- `QWEN_SANDBOX_WORKSPACE`:
+  - 容器内工作目录路径（默认：`/workspace/group`）
 - `APPROVAL_MODE`:
   - `plan`: 只读分析，不修改代码
   - `default`: 所有操作都需要批准
@@ -292,6 +313,12 @@ QWEN_OUTPUT_FORMAT=text                # 输出格式：text | json
 - `QWEN_OUTPUT_FORMAT`:
   - `text`: 人类可读的纯文本输出（节省 20 倍 Token）
   - `json`: 结构化 JSON 输出，包含元数据（用量统计、工具调用等）
+- `QQ_HEARTBEAT_INTERVAL`:
+  - 心跳间隔（毫秒），控制 QQ Bot 与服务器的心跳频率
+  - 服务器默认值通常为 45000ms（45 秒）
+  - 推荐范围：30000-60000ms（30-60 秒）
+  - 设置为 `0` 表示使用服务器默认值
+  - **降低心跳频率可以减少网络请求，但可能影响连接稳定性**
 
 **注意**：配置完 `.env` 后，运行 `npx tsx setup/index.ts` 完成设置。
 
