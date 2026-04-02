@@ -49,7 +49,7 @@ export async function run(_args: string[]): Promise<void> {
     console.log('╚══════════════════════════════════════════════════════════════╝\n');
     
     // Ask for operation mode
-    const mode = await question('请选择配置模式：\n  1. 快速配置主群组（推荐）\n  2. 完整配置向导\n  0. 取消\n\n请输入选项 (0-2): ');
+    const mode = await question('请选择配置模式：\n  1. 快速配置主群组（推荐新手）\n  2. 快速配置单个普通群组\n  3. 完整配置向导（主群组 + 多个普通群组）\n  0. 取消\n\n请输入选项 (0-3): ');
     
     if (mode.trim() === '0') {
       console.log('\n已取消配置。\n');
@@ -63,9 +63,15 @@ export async function run(_args: string[]): Promise<void> {
     if (mode.trim() === '1') {
       // Quick main group setup
       await setupMainGroupQuick(db, rl, question, yesNo);
-    } else {
+    } else if (mode.trim() === '2') {
+      // Quick single group setup (no main group)
+      await setupSingleGroup(db, rl, question, yesNo);
+    } else if (mode.trim() === '3') {
       // Full wizard
       await setupFullWizard(db, rl, question, yesNo);
+    } else {
+      console.log('\n无效的选项，已取消配置。\n');
+      process.exit(0);
     }
 
     // Summary
@@ -178,6 +184,49 @@ async function setupMainGroupQuick(
   await registerGroup(db, mainGroup, 'main');
   
   console.log('\n   ✓ 主群组注册成功\n');
+  printSummary(db);
+}
+
+/**
+ * Quick single group setup (no main group)
+ */
+async function setupSingleGroup(
+  db: Database,
+  rl: readline.Interface,
+  question: (query: string) => Promise<string>,
+  yesNo: (query: string, defaultYes?: boolean) => Promise<boolean>,
+): Promise<void> {
+  console.log('\n📋 快速配置单个普通群组\n');
+  
+  // Check database
+  const dbPath = path.join(STORE_DIR, 'messages.db');
+  if (!fs.existsSync(dbPath)) {
+    console.error('   ✗ 数据库不存在。请先运行应用程序初始化数据库。\n');
+    process.exit(1);
+  }
+  
+  console.log('   ✓ 数据库已连接\n');
+  
+  const groupJid = await question('   请输入群组 JID（例如：qq:group:123456 或 qq:c2c:789012）：');
+  const groupName = await question('   请输入群组名称（例如："AI 助手测试群"）：');
+  const groupTrigger = await question('   请输入触发词（默认：@Andy）：');
+  const groupRequiresTrigger = await yesNo('   消息是否需要以触发词开头？', false);
+
+  // Generate folder name
+  const timestamp = Date.now();
+  const randomId = Math.random().toString(36).substring(2, 6);
+  const folderName = `qq-group-${timestamp}-${randomId}`;
+
+  const group: GroupInfo = {
+    jid: groupJid,
+    name: groupName,
+    trigger: groupTrigger || '@Andy',
+    requiresTrigger: groupRequiresTrigger,
+  };
+
+  await registerGroup(db, group, folderName);
+  
+  console.log(`\n   ✓ 普通群组注册成功（目录：${folderName}）\n`);
   printSummary(db);
 }
 

@@ -5,31 +5,31 @@ $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════╗"
-Write-Host "║         QwQnanoclaw Installer                                   ║"
-Write-Host "║         Your Personal AI Assistant                           ║"
+Write-Host "║         QwQnanoclaw 安装程序                                   ║"
+Write-Host "║         您的个人 AI 助手                                        ║"
 Write-Host "╚══════════════════════════════════════════════════════════════╝"
 Write-Host ""
 
 # Check if Node.js is installed
 $nodeInstalled = Get-Command node -ErrorAction SilentlyContinue
 if (-not $nodeInstalled) {
-    Write-Host "📦 Node.js is not installed"
+    Write-Host "📦 Node.js 未安装"
     Write-Host ""
     
     # Try winget first
     $winget = Get-Command winget -ErrorAction SilentlyContinue
     if ($winget) {
-        Write-Host "Installing Node.js via winget..."
+        Write-Host "通过 winget 安装 Node.js..."
         winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements
     } else {
-        Write-Host "winget not available. Please install Node.js manually:"
-        Write-Host "  1. Visit: https://nodejs.org/"
-        Write-Host "  2. Download and install Node.js LTS (v22+)"
-        Write-Host "  3. Re-run this installer"
+        Write-Host "未找到 winget。请手动安装 Node.js："
+        Write-Host "  1. 访问：https://nodejs.org/"
+        Write-Host "  2. 下载并安装 Node.js LTS (v22+)"
+        Write-Host "  3. 重新运行此安装程序"
         exit 1
     }
     
-    Write-Host "✓ Node.js installed"
+    Write-Host "✓ Node.js 已安装"
     Write-Host ""
 }
 
@@ -38,104 +38,237 @@ $nodeVersion = node --version
 $nodeMajor = [int]($nodeVersion -replace 'v(\d+)\..*', '$1')
 
 if ($nodeMajor -lt 20) {
-    Write-Host "✗ Node.js version $nodeVersion is too old"
-    Write-Host "  Required: Node.js 20+"
-    Write-Host "  Please upgrade Node.js"
+    Write-Host "✗ Node.js 版本过旧：$nodeVersion"
+    Write-Host "  需要：Node.js 20+"
+    Write-Host "  请升级 Node.js"
     exit 1
 }
 
-Write-Host "✓ Node.js $nodeVersion is installed"
+Write-Host "✓ Node.js $nodeVersion 已安装"
 Write-Host ""
 
 # Check if running from project directory
 if (-not (Test-Path "package.json")) {
-    Write-Host "✗ Please run this script from the QwQnanoclaw project directory"
+    Write-Host "✗ 请在 QwQnanoclaw 项目目录中运行此脚本"
     exit 1
 }
 
 # Install dependencies
-Write-Host "📦 Installing project dependencies..."
+Write-Host "📦 安装项目依赖..."
 npm install
-Write-Host "✓ Dependencies installed"
+Write-Host "✓ 依赖已安装"
 Write-Host ""
 
 # Create .env if needed
 if (-not (Test-Path ".env") -and (Test-Path ".env.example")) {
-    Write-Host "📝 Creating .env file..."
+    Write-Host "📝 创建 .env 文件..."
     Copy-Item .env.example .env
-    Write-Host "✓ .env file created"
-    Write-Host "⚠ Please edit .env with your configuration"
+    Write-Host "✓ .env 文件已创建"
+    Write-Host "⚠ 请编辑 .env 文件进行配置"
     Write-Host ""
 }
 
 # Build project (compile TypeScript)
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════╗"
-Write-Host "║           Building Project                                   ║"
+Write-Host "║           构建项目                                            ║"
 Write-Host "╚══════════════════════════════════════════════════════════════╝"
 Write-Host ""
-Write-Host "🔨 Building project..."
+Write-Host "🔨 构建项目..."
 npm run build
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "✓ Build successful!"
+    Write-Host "✓ 构建成功！"
 } else {
-    Write-Host "✗ Build failed!"
-    Write-Host "  You can manually rebuild later: npm run build"
+    Write-Host "✗ 构建失败！"
+    Write-Host "  您可以稍后手动构建：npm run build"
     Write-Host ""
-    $continueSetup = Read-Host "Continue with setup anyway? [y/N]"
+    $continueSetup = Read-Host "仍然继续配置？[y/N]"
     if ($continueSetup -ne "Y" -and $continueSetup -ne "y") {
-        Write-Host "Installation aborted."
+        Write-Host "安装已中止。"
         exit 1
     }
 }
 Write-Host ""
 
-# Ask about Docker Sandbox mode
+# Check Qwen Code installation
+Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════╗"
-Write-Host "║           Docker Sandbox Configuration                       ║"
+Write-Host "║           检查 Qwen Code                                      ║"
 Write-Host "╚══════════════════════════════════════════════════════════════╝"
 Write-Host ""
-Write-Host "Docker Sandbox mode provides better isolation and security."
-Write-Host "Each QQ group runs in a separate Docker container."
+
+# Check if Qwen Code is installed
+$qwenInstalled = Get-Command qwen -ErrorAction SilentlyContinue
+if ($qwenInstalled) {
+    $qwenVersion = qwen --version 2>&1 | Select-Object -First 1
+    Write-Host "✓ Qwen Code 已安装：$qwenVersion"
+} else {
+    Write-Host "⚠ Qwen Code 未安装"
+    Write-Host ""
+    Write-Host "正在安装 Qwen Code..."
+    npm install -g @qwen-code/qwen-code
+    
+    $qwenInstalled = Get-Command qwen -ErrorAction SilentlyContinue
+    if ($qwenInstalled) {
+        Write-Host "✓ Qwen Code 安装成功"
+    } else {
+        Write-Host "✗ 安装 Qwen Code 失败"
+        Write-Host "  请运行：npm install -g @qwen-code/qwen-code"
+        Write-Host ""
+        $continueSetup = Read-Host "仍然继续配置？[y/N]"
+        if ($continueSetup -ne "Y" -and $continueSetup -ne "y") {
+            Write-Host "安装已中止。"
+            exit 1
+        }
+    }
+}
 Write-Host ""
-Write-Host "Benefits:"
-Write-Host "  ✓ Isolated execution environment"
-Write-Host "  ✓ Enhanced security"
-Write-Host "  ✓ Clean file system access"
+
+# Check and configure Qwen Code skills (agent-browser)
 Write-Host ""
-Write-Host "Requirements:"
-Write-Host "  - Docker Desktop (Windows/macOS) or Docker CE (Linux)"
-Write-Host "  - At least 2GB available memory"
+Write-Host "╔══════════════════════════════════════════════════════════════╗"
+Write-Host "║           配置 Qwen Code 技能                                   ║"
+Write-Host "╚══════════════════════════════════════════════════════════════╝"
 Write-Host ""
-$useDocker = Read-Host "Do you want to use Docker Sandbox mode? [y/N]"
+
+# Check if agent-browser is installed
+$agentBrowserInstalled = Get-Command agent-browser -ErrorAction SilentlyContinue
+if ($agentBrowserInstalled) {
+    Write-Host "✓ agent-browser 已安装"
+} else {
+    Write-Host "⚠ agent-browser 未安装"
+    Write-Host ""
+    Write-Host "正在安装 agent-browser..."
+    npm install -g agent-browser
+    
+    $agentBrowserInstalled = Get-Command agent-browser -ErrorAction SilentlyContinue
+    if ($agentBrowserInstalled) {
+        Write-Host "✓ agent-browser 安装成功"
+        
+        Write-Host ""
+        Write-Host "正在运行 agent-browser install..."
+        agent-browser install
+        
+        Write-Host "✓ agent-browser 已配置"
+    } else {
+        Write-Host "✗ 安装 agent-browser 失败"
+        Write-Host "  您可以稍后手动安装：npm install -g agent-browser"
+    }
+}
+
+# Configure Qwen Code skills
+$qwenConfigDir = Join-Path $env:USERPROFILE ".qwen"
+$agentBrowserSkillDir = Join-Path $qwenConfigDir "skills\agent-browser"
+$qwenSettingsPath = Join-Path $qwenConfigDir "settings.json"
+
+if ((Test-Path $agentBrowserSkillDir) -and (Test-Path (Join-Path $agentBrowserSkillDir "SKILL.md"))) {
+    Write-Host "✓ agent-browser 技能已配置"
+} else {
+    Write-Host "⚠ agent-browser 技能未配置"
+    Write-Host ""
+    Write-Host "正在为 Qwen Code 配置 agent-browser 技能..."
+    
+    # Create skills directory
+    if (-not (Test-Path $agentBrowserSkillDir)) {
+        New-Item -ItemType Directory -Path $agentBrowserSkillDir -Force | Out-Null
+    }
+    
+    # Get agent-browser global path
+    $npmRoot = npm root -g
+    $agentBrowserPath = Join-Path $npmRoot "agent-browser"
+    
+    if (Test-Path (Join-Path $agentBrowserPath "SKILL.md")) {
+        # Copy SKILL.md to Qwen config directory
+        Copy-Item (Join-Path $agentBrowserPath "SKILL.md") $agentBrowserSkillDir
+        Write-Host "✓ SKILL.md 已复制"
+    }
+    
+    # Update Qwen Code settings.json
+    if (Test-Path $qwenSettingsPath) {
+        # Read and update settings
+        $settings = Get-Content $qwenSettingsPath -Raw | ConvertFrom-Json
+        
+        if (-not $settings.tools) { $settings.tools = [PSCustomObject]@{} }
+        if (-not $settings.tools.experimental) { $settings.tools.experimental = [PSCustomObject]@{} }
+        $settings.tools.experimental.skills = $true
+        
+        if (-not $settings.tools.allowed) { $settings.tools.allowed = @() }
+        if ("web_fetch" -notin $settings.tools.allowed) {
+            $settings.tools.allowed += "web_fetch"
+        }
+        if ("agent-browser" -notin $settings.tools.allowed) {
+            $settings.tools.allowed += "agent-browser"
+        }
+        
+        $settings | ConvertTo-Json -Depth 10 | Set-Content $qwenSettingsPath -Force
+        Write-Host "✓ Qwen Code 设置已更新"
+    } else {
+        # Create settings.json
+        $settings = @{
+            tools = @{
+                experimental = @{
+                    skills = $true
+                }
+                allowed = @("web_fetch", "agent-browser")
+            }
+        }
+        $settings | ConvertTo-Json -Depth 10 | Set-Content $qwenSettingsPath -Force
+        Write-Host "✓ Qwen Code settings.json 已创建"
+    }
+    
+    Write-Host "✓ agent-browser 技能已为 Qwen Code 配置"
+}
+Write-Host ""
+
+# Ask about Docker Sandbox mode
+Write-Host "╔══════════════════════════════════════════════════════════════╗"
+Write-Host "║           Docker Sandbox 配置                                   ║"
+Write-Host "╚══════════════════════════════════════════════════════════════╝"
+Write-Host ""
+Write-Host "是否启用 Docker Sandbox 以增强安全性？(y/N)"
+Write-Host ""
+Write-Host "什么是 Docker Sandbox？"
+Write-Host "  - AI 在 Docker 容器内运行，文件系统隔离"
+Write-Host "  - AI 无法修改源代码或敏感文件"
+Write-Host "  - 危险命令只影响容器，不影响宿主机"
+Write-Host "  - 容器内创建的文件自动同步到宿主机"
+Write-Host ""
+Write-Host "要求："
+Write-Host "  - Docker Desktop 必须已安装并运行"
+Write-Host "  - 启动稍慢（需要创建容器）"
+Write-Host ""
+Write-Host "推荐用于：生产环境"
+Write-Host "不需要用于：开发/测试"
+Write-Host ""
+$useDocker = Read-Host "是否启用 Docker Sandbox？[y/N]"
 Write-Host ""
 
 if ($useDocker -eq "Y" -or $useDocker -eq "y") {
-    Write-Host "Configuring Docker Sandbox mode..."
+    Write-Host "正在配置 Docker Sandbox 模式..."
     
     # Check if Docker is installed
     $dockerInstalled = Get-Command docker -ErrorAction SilentlyContinue
     if (-not $dockerInstalled) {
-        Write-Host "✗ Docker is not installed"
+        Write-Host "✗ Docker 未安装"
         Write-Host ""
-        Write-Host "Please install Docker Desktop:"
-        Write-Host "  1. Visit: https://www.docker.com/products/docker-desktop/"
-        Write-Host "  2. Download and install Docker Desktop"
-        Write-Host "  3. Start Docker Desktop"
-        Write-Host "  4. Re-run this installer"
+        Write-Host "请安装 Docker Desktop："
+        Write-Host "  1. 访问：https://www.docker.com/products/docker-desktop/"
+        Write-Host "  2. 下载并安装 Docker Desktop"
+        Write-Host "  3. 启动 Docker Desktop"
+        Write-Host "  4. 重新运行此安装程序"
         Write-Host ""
-        Write-Host "Or switch to Native mode (no Docker required)"
+        Write-Host "或者切换到原生模式（不需要 Docker）"
         exit 1
     }
     
     # Check if Docker is running
     try {
         docker ps | Out-Null
-        Write-Host "✓ Docker is installed and running"
+        Write-Host "✓ Docker 已安装并运行"
     } catch {
-        Write-Host "✗ Docker is not running"
-        Write-Host "  Please start Docker Desktop and re-run this installer"
+        Write-Host "✗ Docker 未运行"
+        Write-Host "  请启动 Docker Desktop 并重新运行此安装程序"
         exit 1
     }
     
@@ -144,14 +277,14 @@ if ($useDocker -eq "Y" -or $useDocker -eq "y") {
         $envContent = Get-Content ".env" -Raw
         $envContent = $envContent -replace 'NATIVE_MODE=.*', 'NATIVE_MODE=false'
         Set-Content ".env" $envContent
-        Write-Host "✓ Docker Sandbox mode enabled in .env"
+        Write-Host "✓ .env 已配置为 Docker Sandbox 模式"
     }
     
     Write-Host ""
-    Write-Host "Note: Container image will be built during first run or setup wizard"
+    Write-Host "注意：容器镜像将在首次运行或配置向导时构建"
     Write-Host ""
 } else {
-    Write-Host "Using Native mode (Qwen Code runs locally)"
+    Write-Host "使用原生模式（Qwen Code 本地运行）"
     Write-Host ""
     
     # Update .env file
@@ -159,35 +292,35 @@ if ($useDocker -eq "Y" -or $useDocker -eq "y") {
         $envContent = Get-Content ".env" -Raw
         $envContent = $envContent -replace 'NATIVE_MODE=.*', 'NATIVE_MODE=true'
         Set-Content ".env" $envContent
-        Write-Host "✓ Native mode enabled in .env"
+        Write-Host "✓ .env 已配置为原生模式"
     }
 }
 Write-Host ""
 
 # Run setup wizard
 Write-Host "╔══════════════════════════════════════════════════════════════╗"
-Write-Host "║              Prerequisites Complete                          ║"
+Write-Host "║              前置条件已完成                                   ║"
 Write-Host "╚══════════════════════════════════════════════════════════════╝"
 Write-Host ""
 
-$runSetup = Read-Host "Run the interactive setup wizard now? [Y/n]"
+$runSetup = Read-Host "现在运行交互式配置向导？[Y/n]"
 Write-Host ""
 
 if ($runSetup -eq "" -or $runSetup -eq "Y" -or $runSetup -eq "y") {
     Write-Host ""
-    Write-Host "🚀 Running QwQnanoclaw setup wizard..."
+    Write-Host "正在运行 QwQnanoclaw 配置向导..."
     npx tsx setup/index.ts
 } else {
     Write-Host ""
-    Write-Host "✓ Installation complete!"
+    Write-Host "✓ 安装完成！"
     Write-Host ""
-    Write-Host "You can run the setup wizard later with:"
+    Write-Host "您可以稍后运行配置向导："
     Write-Host "   npx tsx setup/index.ts"
     Write-Host ""
 }
 
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════╗"
-Write-Host "║              Installation Complete! 🎉                       ║"
+Write-Host "║          感谢您安装使用 QwQnanoclaw！🎉                    ║"
 Write-Host "╚══════════════════════════════════════════════════════════════╝"
 Write-Host ""

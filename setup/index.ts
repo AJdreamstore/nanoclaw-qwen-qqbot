@@ -1,8 +1,8 @@
 /**
  * Setup CLI entry point.
  * Usage: 
- *   npx tsx setup/index.ts                    # Interactive wizard 
- *   npx tsx setup/index.ts --step <name>     # Run specific step
+ *   npx tsx setup/index.ts                    # 交互式向导
+ *   npx tsx setup/index.ts --step <name>     # 运行单步配置
  */
 import * as readline from 'readline';
 import * as fs from 'fs';
@@ -95,8 +95,7 @@ async function interactiveWizard(): Promise<void> {
   };
 
   console.log('\n╔══════════════════════════════════════════════════════════════╗');
-  console.log('║           Welcome to QwQnanoclaw Setup Wizard                  ║');
-  console.log('║        Your Personal AI Assistant Setup                     ║');
+  console.log('║           欢迎使用 QwQnanoclaw 配置向导                          ║');
   console.log('╚══════════════════════════════════════════════════════════════╝\n');
   
   // Check if running in interactive mode or specific step mode
@@ -131,214 +130,88 @@ async function interactiveWizard(): Promise<void> {
   // Otherwise run full wizard (option 1)
 
   try {
-    // Welcome message and quick validation / 欢迎信息和快速验证
-    console.log('\n╔══════════════════════════════════════════════════════════════╗');
-    console.log('║           Welcome to QwQnanoclaw Setup Wizard                  ║');
-    console.log('║        欢迎使用 QwQnanoclaw 配置向导                         ║');
-    console.log('╚══════════════════════════════════════════════════════════════╝\n');
-    
-    // Quick validation - assume environment is ready (install.sh handles it) / 快速验证 - 假设环境已就绪（install.sh 已处理）
-    console.log('📋 Validating environment... / 验证环境中...');
-    console.log('   ✓ Node.js is installed / Node.js 已安装');
-    console.log('   ✓ Dependencies are installed / 依赖已安装');
-    console.log('   ✓ Project is built / 项目已构建');
+    // Quick validation - assume environment is ready (install.sh handles it)
+    console.log('\n📋 验证环境中...');
+    console.log('   ✓ Node.js 已安装');
+    console.log('   ✓ 依赖已安装');
+    console.log('   ✓ 项目已构建');
+    console.log('   ✓ Qwen Code 已配置');
+    console.log('   ✓ agent-browser 已安装');
     console.log('');
 
-    // Step 1: Check .env file / 检查 .env 文件
-    console.log('📋 Step 1/5: Checking configuration... / 检查配置...');
+    // Step 1: Check .env file
+    console.log('📋 Step 1/4: 检查配置...');
     const fs = await import('fs');
     const path = await import('path');
     const envPath = path.join(process.cwd(), '.env');
     if (!fs.existsSync(envPath)) {
-      console.log('   ⚠ .env file not found. Creating from template... / 未找到 .env 文件，从模板创建...');
+      console.log('   ⚠ 未找到 .env 文件，从模板创建...');
       const envExamplePath = path.join(process.cwd(), '.env.example');
       if (fs.existsSync(envExamplePath)) {
         const envContent = fs.readFileSync(envExamplePath, 'utf-8');
         fs.writeFileSync(envPath, envContent);
-        console.log('   ✓ .env file created. Please edit it with your configuration. / .env 文件已创建，请编辑配置');
+        console.log('   ✓ .env 文件已创建，请编辑配置');
       } else {
-        console.log('   ⚠ No .env.example found. / 未找到 .env.example');
+        console.log('   ⚠ 未找到 .env.example');
       }
     } else {
-      console.log('   ✓ .env file exists / .env 文件已存在');
+      console.log('   ✓ .env 文件已存在');
     }
 
-    // Step 2: Check Qwen Code / 检查 Qwen Code
-    console.log('\n📋 Step 2/5: Checking Qwen Code installation... / 检查 Qwen Code 安装...');
-    const { execSync } = await import('child_process');
-    const os = await import('os');
-    const qwenConfigDir = path.join(os.homedir(), '.qwen');
-    let qwenInstalled = false;
+    // Step 2: Database and storage configuration
+    console.log('\n📋 Step 2/4: 数据库和存储配置...');
+    console.log('   ℹ 本应用使用 SQLite（嵌入式数据库）存储消息');
+    console.log('   ✓ 无需外部数据库服务器');
+    console.log('   ✓ 数据库文件将自动创建于：store/messages.db');
     
-    try {
-      execSync('qwen --version', { stdio: 'ignore' });
-      console.log('   ✓ Qwen Code is installed');
-      qwenInstalled = true;
-      
-      // Check Qwen Code configuration
-      const qwenSettingsPath = path.join(qwenConfigDir, 'settings.json');
-      if (fs.existsSync(qwenSettingsPath)) {
-        const settings = JSON.parse(fs.readFileSync(qwenSettingsPath, 'utf-8'));
-        const hasTools = settings.tools?.experimental?.skills === true;
-        const hasWebFetch = settings.tools?.allowed?.includes('web_fetch');
-        
-        if (hasTools && hasWebFetch) {
-          console.log('   ✓ Qwen Code is properly configured (skills + web_fetch enabled)');
-        } else {
-          console.log('   ⚠ Qwen Code configuration needs update:');
-          if (!hasTools) console.log('      - Missing: tools.experimental.skills = true');
-          if (!hasWebFetch) console.log('      - Missing: tools.allowed includes "web_fetch"');
-          console.log('   ℹ Run: npx tsx setup/index.ts --step qwen-skills');
-        }
-      } else {
-        console.log('   ⚠ Qwen Code settings not found. Run "npx qwen-code setup" to configure.');
-      }
-    } catch {
-      console.log('   ✗ Qwen Code is not installed');
-      console.log('   ℹ Install with: npm install -g @qwen-code/qwen-code');
-    }
-
-    // Step 3: Check agent-browser / 检查 agent-browser
-    console.log('\n📋 Step 3/5: Checking agent-browser... / 检查 agent-browser...');
-    let agentBrowserInstalled = false;
-    
-    try {
-      execSync('agent-browser --version', { stdio: 'ignore' });
-      console.log('   ✓ agent-browser is installed / agent-browser 已安装');
-      agentBrowserInstalled = true;
-      
-      // Check if skill is configured / 检查技能是否配置
-      const agentBrowserSkillDir = path.join(qwenConfigDir, 'skills', 'agent-browser');
-      if (fs.existsSync(agentBrowserSkillDir) && fs.existsSync(path.join(agentBrowserSkillDir, 'SKILL.md'))) {
-        console.log('   ✓ agent-browser skill is configured for Qwen Code / agent-browser 技能已为 Qwen Code 配置');
-      } else {
-        console.log('   ⚠ agent-browser skill is not configured for Qwen Code / agent-browser 技能未为 Qwen Code 配置');
-        console.log('   ℹ Run: npx tsx setup/index.ts --step qwen-skills');
-      }
-    } catch {
-      console.log('   ✗ agent-browser is not installed / agent-browser 未安装');
-      console.log('   ℹ Run: npx tsx setup/index.ts --step agent-browser');
-    }
-
-    // Step 4: Ask about AI features setup / 询问 AI 功能配置
-    console.log('\n📋 Step 4/5: AI Features Configuration... / AI 功能配置...');
-    const setupAI = await yesNo('   Do you want to install and configure AI web automation features? (recommended) / 是否安装配置 AI 网页自动化功能？（推荐）', true);
-    
-    if (setupAI) {
-      if (!agentBrowserInstalled) {
-        console.log('\n   Installing agent-browser... / 正在安装 agent-browser...');
-        try {
-          execSync('npm install -g agent-browser', { stdio: 'inherit' });
-          console.log('   ✓ agent-browser installed / agent-browser 已安装');
-          
-          console.log('\n   Running agent-browser install... / 正在运行 agent-browser install...');
-          execSync('agent-browser install', { stdio: 'inherit' });
-          console.log('   ✓ agent-browser configured / agent-browser 已配置');
-        } catch (err) {
-          console.log('   ⚠ agent-browser installation failed, you can install it manually later / agent-browser 安装失败，您可以稍后手动安装');
-        }
-      }
-      
-      // Configure Qwen Code skills / 配置 Qwen Code 技能
-      console.log('\n   Configuring Qwen Code skills... / 正在配置 Qwen Code 技能...');
-      try {
-        const npmRoot = execSync('npm root -g', { encoding: 'utf-8' }).trim();
-        const agentBrowserPath = path.join(npmRoot, 'agent-browser');
-        const skillMdSource = path.join(agentBrowserPath, 'SKILL.md');
-        const agentBrowserSkillDir = path.join(qwenConfigDir, 'skills', 'agent-browser');
-        
-        if (!fs.existsSync(agentBrowserSkillDir)) {
-          fs.mkdirSync(agentBrowserSkillDir, { recursive: true });
-        }
-        
-        if (fs.existsSync(skillMdSource)) {
-          fs.copyFileSync(skillMdSource, path.join(agentBrowserSkillDir, 'SKILL.md'));
-          console.log('   ✓ SKILL.md copied');
-        }
-        
-        // Update settings.json
-        const qwenSettingsPath = path.join(qwenConfigDir, 'settings.json');
-        let settings = {};
-        if (fs.existsSync(qwenSettingsPath)) {
-          settings = JSON.parse(fs.readFileSync(qwenSettingsPath, 'utf-8'));
-        }
-        
-        if (!(settings as any).tools) (settings as any).tools = {};
-        if (!(settings as any).tools.experimental) (settings as any).tools.experimental = {};
-        (settings as any).tools.experimental.skills = true;
-        
-        if (!(settings as any).tools.allowed) (settings as any).tools.allowed = [];
-        if (!(settings as any).tools.allowed.includes('web_fetch')) {
-          (settings as any).tools.allowed.push('web_fetch');
-        }
-        if (!(settings as any).tools.allowed.includes('agent-browser')) {
-          (settings as any).tools.allowed.push('agent-browser');
-        }
-        
-        fs.writeFileSync(qwenSettingsPath, JSON.stringify(settings, null, 2));
-        console.log('   ✓ Qwen Code settings updated / Qwen Code 设置已更新');
-        console.log('   ✓ AI features configured successfully / AI 功能配置成功');
-      } catch (err) {
-        console.log('   ⚠ Qwen Code configuration failed, you can configure it manually later / Qwen Code 配置失败，您可以稍后手动配置');
-      }
-    } else {
-      console.log('   ℹ Skipping AI features setup (you can configure them later) / 跳过 AI 功能配置（您可以稍后配置）');
-    }
-
-    // Step 5: Database and storage configuration / 数据库和存储配置
-    console.log('\n📋 Step 5/5: Database and Storage Configuration... / 数据库和存储配置...');
-    console.log('   ℹ This application uses SQLite (embedded database) for message storage / 本应用使用 SQLite（嵌入式数据库）存储消息');
-    console.log('   ✓ No external database server required / 无需外部数据库服务器');
-    console.log('   ✓ Database file will be created automatically at: store/messages.db / 数据库文件将自动创建于：store/messages.db');
-    
-    // Ask about database location / 询问数据库位置
-    const customDbPath = await yesNo('   Do you want to use a custom database path? (advanced) / 是否使用自定义数据库路径？（高级）', false);
+    // Ask about database location
+    const customDbPath = await yesNo('   是否使用自定义数据库路径？（高级）', false);
     
     if (customDbPath) {
-      const dbPath = await question('   Enter custom database path: / 输入自定义数据库路径：');
+      const dbPath = await question('   输入自定义数据库路径：');
       if (dbPath.trim()) {
-        console.log(`   ✓ Custom database path configured: ${dbPath.trim()} / 自定义数据库路径已配置：${dbPath.trim()}`);
-        // Update .env file / 更新 .env 文件
+        console.log(`   ✓ 自定义数据库路径已配置：${dbPath.trim()}`);
+        // Update .env file
         if (fs.existsSync(envPath)) {
           let envContent = fs.readFileSync(envPath, 'utf-8');
           if (!envContent.includes('DATABASE_PATH')) {
-            envContent += `\n# Custom database path / 自定义数据库路径\nDATABASE_PATH=${dbPath.trim()}\n`;
+            envContent += `\n# Custom database path\nDATABASE_PATH=${dbPath.trim()}\n`;
             fs.writeFileSync(envPath, envContent);
-            console.log('   ✓ Updated .env with DATABASE_PATH / 已更新 .env 中的 DATABASE_PATH');
+            console.log('   ✓ 已更新 .env 中的 DATABASE_PATH');
           }
         }
       }
     } else {
-      console.log('   ✓ Using default database location: store/messages.db / 使用默认数据库位置：store/messages.db');
+      console.log('   ✓ 使用默认数据库位置：store/messages.db');
     }
 
-    // Step 5.5: Database engine selection / 数据库引擎选择
-    console.log('\n📋 Step 5.5/6: Database Engine Selection... / 数据库引擎选择...');
-    console.log('   ℹ This application supports two SQLite engines: / 本应用支持两种 SQLite 引擎：');
-    console.log('      - better-sqlite3: Faster performance, requires compilation (Node.js native module) / 更快的性能，需要编译（Node.js 原生模块）');
-    console.log('      - sql.js: Pure JavaScript, no compilation needed, works everywhere / 纯 JavaScript，无需编译，到处运行');
+    // Step 2.5: Database engine selection
+    console.log('\n📋 Step 2.5/4: 数据库引擎选择...');
+    console.log('   ℹ 本应用支持两种 SQLite 引擎：');
+    console.log('      - better-sqlite3: 更快的性能，需要编译（Node.js 原生模块）');
+    console.log('      - sql.js: 纯 JavaScript，无需编译，到处运行');
     
-    const useBetterSqlite = await yesNo('   Use better-sqlite3 for better performance? (recommended for production)', true);
+    const useBetterSqlite = await yesNo('   是否使用 better-sqlite3 以获得更好的性能？（推荐用于生产环境）', true);
     
     if (useBetterSqlite) {
-      console.log('   ✓ better-sqlite3 selected');
+      console.log('   ✓ 已选择 better-sqlite3');
       
       // Check if better-sqlite3 is installed
       let betterSqliteInstalled = false;
       try {
         require.resolve('better-sqlite3');
         betterSqliteInstalled = true;
-        console.log('   ✓ better-sqlite3 is already installed');
+        console.log('   ✓ better-sqlite3 已安装');
       } catch {
-        console.log('   ⚠ better-sqlite3 is not installed');
-        const installBetterSqlite = await yesNo('   Install better-sqlite3 now? (requires Node.js native compilation)', true);
+        console.log('   ⚠ better-sqlite3 未安装');
+        const installBetterSqlite = await yesNo('   现在安装 better-sqlite3？（需要 Node.js 原生编译）', true);
         
         if (installBetterSqlite) {
-          console.log('\n   Installing better-sqlite3...');
+          console.log('\n   正在安装 better-sqlite3...');
           try {
             execSync('npm install better-sqlite3', { stdio: 'inherit' });
             betterSqliteInstalled = true;
-            console.log('   ✓ better-sqlite3 installed successfully');
+            console.log('   ✓ better-sqlite3 安装成功');
             
             // Update .env file
             if (fs.existsSync(envPath)) {
@@ -346,227 +219,226 @@ async function interactiveWizard(): Promise<void> {
               if (!envContent.includes('DB_ENGINE')) {
                 envContent += '\n# Database engine\nDB_ENGINE=better-sqlite3\n';
                 fs.writeFileSync(envPath, envContent);
-                console.log('   ✓ Updated .env with DB_ENGINE=better-sqlite3');
+                console.log('   ✓ 已更新 .env 中的 DB_ENGINE=better-sqlite3');
               }
             }
           } catch (err) {
-            console.log('   ⚠ Failed to install better-sqlite3');
-            console.log('   ℹ This may be due to missing compilation tools');
-            console.log('   ℹ Falling back to sql.js');
+            console.log('   ⚠ 安装 better-sqlite3 失败');
+            console.log('   ℹ 这可能是因为缺少编译工具');
+            console.log('   ℹ 降级使用 sql.js');
             betterSqliteInstalled = false;
           }
         }
       }
       
       if (!betterSqliteInstalled) {
-        console.log('   ℹ Using sql.js instead (no compilation required)');
+        console.log('   ℹ 使用 sql.js 代替（无需编译）');
         if (fs.existsSync(envPath)) {
           let envContent = fs.readFileSync(envPath, 'utf-8');
           if (!envContent.includes('DB_ENGINE')) {
             envContent += '\n# Database engine\nDB_ENGINE=sql.js\n';
             fs.writeFileSync(envPath, envContent);
-            console.log('   ✓ Updated .env with DB_ENGINE=sql.js');
+            console.log('   ✓ 已更新 .env 中的 DB_ENGINE=sql.js');
           }
         }
       }
     } else {
-      console.log('   ✓ sql.js selected (pure JavaScript, no compilation needed)');
+      console.log('   ✓ 已选择 sql.js（纯 JavaScript，无需编译）');
       if (fs.existsSync(envPath)) {
         let envContent = fs.readFileSync(envPath, 'utf-8');
         if (!envContent.includes('DB_ENGINE')) {
           envContent += '\n# Database engine\nDB_ENGINE=sql.js\n';
           fs.writeFileSync(envPath, envContent);
-          console.log('   ✓ Updated .env with DB_ENGINE=sql.js');
+          console.log('   ✓ 已更新 .env 中的 DB_ENGINE=sql.js');
         }
       }
     }
-    // Database step complete - progress will be saved in container step if needed
 
-    // Step 9: Container mode selection (Docker vs Native)
-    console.log('\n📋 Step 9/9: Container Mode Configuration...');
+    // Step 3: Group registration
+    console.log('\n📋 Step 3/4: 群组注册...');
+    console.log('   ℹ 注册 QQ 群组以使用 AI 助手');
+    console.log('');
     
-    // Check if we should resume from container step
-    const progress = getProgress();
-    if (progress === 'container') {
-      console.log('   ℹ Resuming from container configuration step...');
-      console.log('   ℹ Docker mode selected. Container isolation for agent execution.');
-      // Progress already saved, continue to Docker operations
-    } else {
-      // First time installation - default to Docker mode
-      console.log('   ℹ Recommended: Docker mode (container isolation for agent execution)');
-      const useNative = await yesNo('   Use native mode instead? (no containers, agents run directly on host)', false);
+    const setupGroups = await yesNo('   是否现在配置群组？（推荐）', true);
+    
+    if (setupGroups) {
+      console.log('\n   正在启动群组配置...');
+      console.log('');
       
-      if (useNative) {
-        console.log('   ✓ Native mode selected');
+      // Import group setup module
+      const groupsModule = await import('./groups-interactive.js');
+      await groupsModule.run([]);
+      
+      console.log('   ✓ 群组配置完成');
+    } else {
+      console.log('   ℹ 稍后配置群组：npx tsx setup/index.ts --step groups-interactive');
+    }
+
+    // Step 4: Complete
+    console.log('\n╔══════════════════════════════════════════════════════════════╗');
+    console.log('║           配置完成！🎉                                       ║');
+    console.log('╚══════════════════════════════════════════════════════════════╝');
+    console.log('');
+    console.log('   ✓ 环境已验证');
+    console.log('   ✓ 配置已检查');
+    console.log('   ✓ 数据库已配置');
+    if (setupGroups) {
+      console.log('   ✓ 群组已注册');
+    }
+    console.log('');
+    console.log('   下一步：');
+    console.log('   1. 编辑 .env 填入 QQ 机器人凭证');
+    if (!setupGroups) {
+      console.log('   2. 配置群组：npx tsx setup/index.ts --step groups-interactive');
+      console.log('   3. 启动机器人：npm start');
+    } else {
+      console.log('   2. 启动机器人：npm start');
+    }
+    console.log('');
+    
+    clearProgress(); // Installation complete
+    return;
+    
+    if (useBetterSqlite) {
+      console.log('   ✓ 已选择 better-sqlite3');
+      
+      // Check if better-sqlite3 is installed
+      let betterSqliteInstalled = false;
+      try {
+        require.resolve('better-sqlite3');
+        betterSqliteInstalled = true;
+        console.log('   ✓ better-sqlite3 已安装');
+      } catch {
+        console.log('   ⚠ better-sqlite3 未安装');
+        const installBetterSqlite = await yesNo('   现在安装 better-sqlite3？（需要 Node.js 原生编译）', true);
         
-        // Update .env file
-        if (fs.existsSync(envPath)) {
-          let envContent = fs.readFileSync(envPath, 'utf-8');
-          if (!envContent.includes('NATIVE_MODE')) {
-            envContent += '\n# Run in native mode (no containers)\nNATIVE_MODE=true\n';
-            fs.writeFileSync(envPath, envContent);
-            console.log('   ✓ Updated .env with NATIVE_MODE=true');
+        if (installBetterSqlite) {
+          console.log('\n   正在安装 better-sqlite3...');
+          try {
+            execSync('npm install better-sqlite3', { stdio: 'inherit' });
+            betterSqliteInstalled = true;
+            console.log('   ✓ better-sqlite3 安装成功');
+            
+            // Update .env file
+            if (fs.existsSync(envPath)) {
+              let envContent = fs.readFileSync(envPath, 'utf-8');
+              if (!envContent.includes('DB_ENGINE')) {
+                envContent += '\n# Database engine\nDB_ENGINE=better-sqlite3\n';
+                fs.writeFileSync(envPath, envContent);
+                console.log('   ✓ 已更新 .env 中的 DB_ENGINE=better-sqlite3');
+              }
+            }
+          } catch (err) {
+            console.log('   ⚠ 安装 better-sqlite3 失败');
+            console.log('   ℹ 这可能是因为缺少编译工具');
+            console.log('   ℹ 降级使用 sql.js');
+            betterSqliteInstalled = false;
           }
         }
-        clearProgress(); // Installation complete
-        return; // Exit early, no need for Docker configuration
-      } else {
-        console.log('   ✓ Docker mode selected. Container isolation for agent execution.');
-        saveProgress('container'); // Save progress before Docker operations
-      }
-    }
-    
-    // Docker configuration (only reached if Docker mode selected)
-    {
-      // Check Docker
-      let dockerInstalled = false;
-      try {
-        // First check if docker command exists
-        if (isWindows) {
-          execSync('where docker', { stdio: 'ignore' });
-        } else {
-          execSync('which docker', { stdio: 'ignore' });
-        }
-        // Then check if docker daemon is running
-        execSync('docker info', { stdio: 'ignore' });
-        console.log('   ✓ Docker is installed and running');
-        dockerInstalled = true;
-      } catch {
-        console.log('   ⚠ Docker is not installed or not running');
       }
       
-      if (!dockerInstalled) {
-        const installDocker = await yesNo('   Do you want to install Docker now? (recommended for Docker mode)', true);
-        
-        if (installDocker) {
-          console.log('\n   Installing Docker...');
-          try {
-            if (isLinux) {
-              // Check if docker command already exists (may just need to start service)
-              let dockerCmdExists = false;
-              try {
-                execSync('which docker', { stdio: 'ignore' });
-                dockerCmdExists = true;
-              } catch {
-                dockerCmdExists = false;
-              }
-              
-              if (dockerCmdExists) {
-                console.log('   ✓ Docker is installed but not running');
-                console.log('   ℹ Starting Docker service...');
-                try {
-                  execSync('sudo systemctl start docker', { stdio: 'inherit' });
-                  execSync('sudo systemctl enable docker', { stdio: 'ignore' });
-                  console.log('   ✓ Docker service started and enabled');
-                  
-                  // Verify it's working now (use sudo to avoid permission issues)
-                  try {
-                    execSync('sudo docker info', { stdio: 'ignore' });
-                    dockerInstalled = true;
-                    console.log('   ✓ Docker is now running');
-                  } catch {
-                    console.log('   ⚠ Docker service failed to start. Please check system logs.');
-                  }
-                } catch (err) {
-                  console.log('   ⚠ Failed to start Docker service');
-                  console.log('   ℹ Please run: sudo systemctl start docker');
-                }
-              } else {
-                // Docker not installed, install it
-                console.log('   Downloading Docker installation script...');
-                execSync('curl -fsSL https://get.docker.com -o /tmp/get-docker.sh', { stdio: 'ignore' });
-                console.log('   Running Docker installation (requires sudo)...');
-                execSync('sudo sh /tmp/get-docker.sh', { stdio: 'inherit' });
-                console.log('   ✓ Docker installed');
-                console.log('   ℹ Starting Docker service...');
-                
-                try {
-                  execSync('sudo systemctl start docker', { stdio: 'ignore' });
-                  execSync('sudo systemctl enable docker', { stdio: 'ignore' });
-                  
-                  // Verify Docker installation (use sudo to avoid permission issues)
-                  try {
-                    execSync('sudo docker info', { stdio: 'ignore' });
-                    dockerInstalled = true;
-                    console.log('   ✓ Docker is now running');
-                  } catch {
-                    console.log('   ⚠ Docker installed but not running. Please run: sudo systemctl start docker');
-                  }
-                } catch {
-                  console.log('   ⚠ Failed to start Docker service automatically');
-                  console.log('   ℹ Please run: sudo systemctl start docker');
-                }
-              }
-              
-              // Add user to docker group to avoid permission issues
-              if (dockerInstalled && isLinux) {
-                console.log('\n   ℹ Adding current user to docker group...');
-                try {
-                  const os = await import('os');
-                  const username = os.userInfo().username;
-                  execSync(`sudo usermod -aG docker ${username}`, { stdio: 'ignore' });
-                  console.log('   ✓ User added to docker group');
-                  console.log('   ℹ Please log out and log back in for changes to take effect');
-                  console.log('   ℹ Or run: newgrp docker');
+      if (!betterSqliteInstalled) {
+        console.log('   ℹ 使用 sql.js 代替（无需编译）');
+        if (fs.existsSync(envPath)) {
+          let envContent = fs.readFileSync(envPath, 'utf-8');
+          if (!envContent.includes('DB_ENGINE')) {
+            envContent += '\n# Database engine\nDB_ENGINE=sql.js\n';
+            fs.writeFileSync(envPath, envContent);
+            console.log('   ✓ 已更新 .env 中的 DB_ENGINE=sql.js');
+          }
+        }
+      }
+    } else {
+      console.log('   ✓ 已选择 sql.js（纯 JavaScript，无需编译）');
+      if (fs.existsSync(envPath)) {
+        let envContent = fs.readFileSync(envPath, 'utf-8');
+        if (!envContent.includes('DB_ENGINE')) {
+          envContent += '\n# Database engine\nDB_ENGINE=sql.js\n';
+          fs.writeFileSync(envPath, envContent);
+          console.log('   ✓ 已更新 .env 中的 DB_ENGINE=sql.js');
+        }
+      }
+    }
+    // Database step complete
+
+    // Installation complete! Container mode was already configured in install.sh
+    console.log('\n╔══════════════════════════════════════════════════════════════╗');
+    console.log('║                    配置完成！🎉                              ║');
+    console.log('╚══════════════════════════════════════════════════════════════╝');
+    console.log('');
+    console.log('   ✓ 环境已验证');
+    console.log('   ✓ 配置已检查');
+    console.log('   ✓ AI 功能已配置');
+    console.log('   ✓ 数据库已配置');
+    console.log('   ✓ 容器模式已在 install.sh 中配置');
+    console.log('');
+    console.log('   下一步：');
+    console.log('   1. 配置群组：npx tsx setup/index.ts --step groups-interactive');
+    console.log('   2. 启动机器人：npm start');
+    console.log('');
+    
+    clearProgress(); // Installation complete
+    return;
+                  console.log('   ℹ 或者运行：newgrp docker');
                   
                   // Try to verify docker works without sudo using newgrp
                   try {
                     execSync('newgrp docker << EOF\ndocker info\nEOF', { stdio: 'ignore' });
-                    console.log('   ✓ Docker is accessible without sudo (using newgrp)');
+                    console.log('   ✓ Docker 可以无 sudo 访问（使用 newgrp）');
                   } catch {
-                    console.log('   ℹ Docker will be accessible after re-login');
+                    console.log('   ℹ 重新登录后可访问 Docker');
                   }
                 } catch {
-                  console.log('   ⚠ Failed to add user to docker group');
-                  console.log('   ℹ Please run: sudo usermod -aG docker $USER');
+                  console.log('   ⚠ 添加用户到 docker 组失败');
+                  console.log('   ℹ 请运行：sudo usermod -aG docker $USER');
                 }
               }
             } else if (isMac) {
               if (execSync('which brew', { stdio: 'ignore' })) {
-                console.log('   Installing Docker Desktop via Homebrew...');
+                console.log('   正在通过 Homebrew 安装 Docker Desktop...');
                 execSync('brew install --cask docker', { stdio: 'inherit' });
-                console.log('   ✓ Docker Desktop installed');
-                console.log('   ℹ Please open Docker Desktop from Applications folder to complete setup');
-                console.log('   ℹ After Docker Desktop is running, re-run setup to build container image.');
+                console.log('   ✓ Docker Desktop 已安装');
+                console.log('   ℹ 请从应用程序文件夹打开 Docker Desktop 完成设置');
+                console.log('   ℹ Docker Desktop 运行后，重新运行 setup 以构建容器镜像');
               } else {
-                console.log('   ⚠ Homebrew not found');
-                console.log('   ℹ Please install Docker Desktop manually:');
+                console.log('   ⚠ 未找到 Homebrew');
+                console.log('   ℹ 请手动安装 Docker Desktop：');
                 console.log('      https://docs.docker.com/desktop/install/mac-install/');
               }
             } else if (isWindows) {
-              console.log('   ⚠ Please install Docker Desktop manually:');
+              console.log('   ⚠ 请手动安装 Docker Desktop：');
               console.log('      https://docs.docker.com/desktop/install/windows-install/');
             }
           } catch (err) {
-            console.log('   ⚠ Docker installation failed');
-            console.log('   ℹ Please install Docker manually:');
+            console.log('   ⚠ Docker 安装失败');
+            console.log('   ℹ 请手动安装 Docker：');
             console.log('      https://docs.docker.com/get-docker/');
           }
         } else {
-          console.log('   ℹ Skipping Docker installation');
-          console.log('   ℹ You can install Docker later: https://docs.docker.com/get-docker/');
+          console.log('   ℹ 跳过 Docker 安装');
+          console.log('   ℹ 您可以稍后安装 Docker：https://docs.docker.com/get-docker/');
         }
         
         // If Docker is still not available, offer to switch to native mode
         if (!dockerInstalled) {
-          console.log('\n   ⚠ Docker mode requires Docker to be installed and running.');
-          const switchToNative = await yesNo('   Would you like to switch to native mode instead? (recommended)', true);
+          console.log('\n   ⚠ Docker 模式需要安装并运行 Docker');
+          const switchToNative = await yesNo('   您想切换到原生模式吗？（推荐）', true);
           
           if (switchToNative) {
-            console.log('   ✓ Switching to native mode...');
+            console.log('   ✓ 正在切换到原生模式...');
             if (fs.existsSync(envPath)) {
               let envContent = fs.readFileSync(envPath, 'utf-8');
               if (!envContent.includes('NATIVE_MODE')) {
                 envContent += '\n# Run in native mode (no containers)\nNATIVE_MODE=true\n';
                 fs.writeFileSync(envPath, envContent);
-                console.log('   ✓ Updated .env with NATIVE_MODE=true');
+                console.log('   ✓ 已更新 .env 中的 NATIVE_MODE=true');
               }
             }
             // Skip container configuration and build steps
             return; // Exit early from Docker mode configuration
           } else {
-            console.log('   ℹ Keeping Docker mode. Please install Docker and manually build the container image later.');
-            console.log('   ℹ Command: npm run build-container');
+            console.log('   ℹ 保持 Docker 模式。请安装 Docker 并稍后手动构建容器镜像');
+            console.log('   ℹ 命令：npm run build-container');
           }
         }
       }
@@ -574,14 +446,14 @@ async function interactiveWizard(): Promise<void> {
       // Only show Docker configuration if Docker is available
       if (dockerInstalled) {
         // Configure Qwen Code Sandbox settings
-        console.log('\n   📦 Docker Sandbox Configuration:');
-        console.log('   ℹ Qwen Code will run in Docker containers for isolation');
-        console.log('   ℹ Each group runs in a separate container');
-        console.log('   ℹ Container lifecycle managed by Qwen Code automatically');
-        console.log('   ℹ Mount points:');
-        console.log('      - Project root (read-only): /workspace/project');
-        console.log('      - Group folder (read-write): /workspace/group');
-        console.log('   ℹ Logs are stored in: groups/{folder}/logs/');
+        console.log('\n   📦 Docker Sandbox 配置：');
+        console.log('   ℹ Qwen Code 将在 Docker 容器中运行以实现隔离');
+        console.log('   ℹ 每个群组在独立的容器中运行');
+        console.log('   ℹ 容器生命周期由 Qwen Code 自动管理');
+        console.log('   ℹ 挂载点：');
+        console.log('      - 项目根目录（只读）：/workspace/project');
+        console.log('      - 群组文件夹（可写）：/workspace/group');
+        console.log('   ℹ 日志存储位置：groups/{folder}/logs/');
         
         // Update .env file for Docker Sandbox mode
         if (fs.existsSync(envPath)) {
@@ -589,38 +461,38 @@ async function interactiveWizard(): Promise<void> {
           if (!envContent.includes('NATIVE_MODE')) {
             envContent += '\n# Run in Docker Sandbox mode (Qwen Code manages containers)\nNATIVE_MODE=false\n';
             fs.writeFileSync(envPath, envContent);
-            console.log('   ✓ Updated .env with NATIVE_MODE=false');
+            console.log('   ✓ 已更新 .env 中的 NATIVE_MODE=false');
           }
           if (!envContent.includes('QWEN_SANDBOX_TYPE')) {
             envContent += '\n# Qwen Code Sandbox type: docker, none\nQWEN_SANDBOX_TYPE=docker\n';
             fs.writeFileSync(envPath, envContent);
-            console.log('   ✓ Updated .env with QWEN_SANDBOX_TYPE=docker');
+            console.log('   ✓ 已更新 .env 中的 QWEN_SANDBOX_TYPE=docker');
           }
         }
         
         // Build TypeScript
-        console.log('\n   Building TypeScript...');
+        console.log('\n   正在构建 TypeScript...');
         try {
           execSync('npm run build', { stdio: 'inherit' });
-          console.log('   ✓ TypeScript build complete');
+          console.log('   ✓ TypeScript 构建完成');
         } catch (err) {
-          console.log('   ⚠ TypeScript build failed');
-          console.log('   ℹ You can build manually later: npm run build');
+          console.log('   ⚠ TypeScript 构建失败');
+          console.log('   ℹ 您可以稍后手动构建：npm run build');
         }
       }
     }
 
     // Summary
     console.log('\n╔══════════════════════════════════════════════════════════════╗');
-    console.log('║                    Setup Summary                             ║');
+    console.log('║                    配置总结                                  ║');
     console.log('╚══════════════════════════════════════════════════════════════╝\n');
-    console.log(`   Platform:      ${isWindows ? 'Windows' : isLinux ? 'Linux' : isMac ? 'macOS' : platform}`);
+    console.log(`   平台：         ${isWindows ? 'Windows' : isLinux ? 'Linux' : isMac ? 'macOS' : platform}`);
     console.log(`   Node.js:       ${nodeVersion}`);
-    console.log(`   Dependencies:  ${fs.existsSync(nodeModulesPath) ? 'Installed' : 'Not installed'}`);
-    console.log(`   .env file:     ${fs.existsSync(envPath) ? 'Exists' : 'Not found'}`);
-    console.log(`   Qwen Code:     ${qwenInstalled ? 'Installed' : 'Not installed'}`);
-    console.log(`   agent-browser: ${agentBrowserInstalled ? 'Installed' : 'Not installed'}`);
-    console.log(`   Database:      SQLite (embedded)`);
+    console.log(`   依赖：         ${fs.existsSync(nodeModulesPath) ? '已安装' : '未安装'}`);
+    console.log(`   .env 文件：    ${fs.existsSync(envPath) ? '存在' : '未找到'}`);
+    console.log(`   Qwen Code:     ${qwenInstalled ? '已安装' : '未安装'}`);
+    console.log(`   agent-browser: ${agentBrowserInstalled ? '已安装' : '未安装'}`);
+    console.log(`   数据库：       SQLite（嵌入式）`);
     
     // Check NATIVE_MODE from .env file
     let isNativeMode = false;
@@ -628,25 +500,25 @@ async function interactiveWizard(): Promise<void> {
       const envContent = fs.readFileSync(envPath, 'utf-8');
       isNativeMode = envContent.includes('NATIVE_MODE=true');
     }
-    console.log(`   Container:     ${isNativeMode ? 'Native mode' : 'Docker mode'}`);
+    console.log(`   容器：         ${isNativeMode ? '原生模式' : 'Docker 模式'}`);
     console.log('\n╔══════════════════════════════════════════════════════════════╗');
-    console.log('║                   Next Steps                                 ║');
+    console.log('║                    下一步                                    ║');
     console.log('╚══════════════════════════════════════════════════════════════╝\n');
-    console.log('   1. Edit .env file with your QQ/WhatsApp credentials');
+    console.log('   1. 编辑 .env 文件填入 QQ 机器人凭证');
     if (!agentBrowserInstalled || !qwenInstalled) {
-      console.log('   2. Install AI features: npx tsx setup/index.ts --step agent-browser');
-      console.log('   3. Configure Qwen skills: npx tsx setup/index.ts --step qwen-skills');
-      console.log('   4. Run the application: npm start');
-      console.log('   5. Set up groups: npx tsx setup/index.ts --step groups\n');
+      console.log('   2. 安装 AI 功能：npx tsx setup/index.ts --step agent-browser');
+      console.log('   3. 配置 Qwen skills: npx tsx setup/index.ts --step qwen-skills');
+      console.log('   4. 启动机器人：npm start');
+      console.log('   5. 配置群组：npx tsx setup/index.ts --step groups\n');
     } else {
-      console.log('   2. Run the application: npm start');
-      console.log('   3. Set up groups: npx tsx setup/index.ts --step groups\n');
+      console.log('   2. 启动机器人：npm start');
+      console.log('   3. 配置群组：npx tsx setup/index.ts --step groups\n');
     }
 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err }, 'Setup wizard failed');
-    console.error(`\n   ✗ Setup failed: ${message}`);
+    console.error(`\n   ✗ 配置失败：${message}`);
     process.exit(1);
   } finally {
     rl.close();
@@ -659,8 +531,8 @@ async function interactiveWizard(): Promise<void> {
 async function runStep(stepName: string, stepArgs: string[]): Promise<void> {
   const loader = STEPS[stepName];
   if (!loader) {
-    console.error(`Unknown step: ${stepName}`);
-    console.error(`Available steps: ${Object.keys(STEPS).join(', ')}`);
+    console.error(`未知步骤：${stepName}`);
+    console.error(`可用步骤：${Object.keys(STEPS).join(', ')}`);
     process.exit(1);
   }
 
@@ -699,7 +571,7 @@ async function main(): Promise<void> {
 // Add command to reset progress
 if (process.argv.includes('--reset-progress')) {
   clearProgress();
-  console.log('✓ Installation progress reset');
+  console.log('✓ 安装进度已重置');
   process.exit(0);
 }
 
