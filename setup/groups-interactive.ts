@@ -44,6 +44,10 @@ export async function run(_args: string[]): Promise<void> {
   };
 
   try {
+    // Temporarily suppress info logs during setup
+    const originalLevel = process.env.LOG_LEVEL;
+    process.env.LOG_LEVEL = 'error';
+    
     console.log('\n╔══════════════════════════════════════════════════════════════╗');
     console.log('║              Groups Initialization Wizard                    ║');
     console.log('╚══════════════════════════════════════════════════════════════╝\n');
@@ -57,6 +61,10 @@ export async function run(_args: string[]): Promise<void> {
     
     const db = new Database(dbPath);
     await db.initialize();
+    
+    // Restore log level
+    process.env.LOG_LEVEL = originalLevel;
+    
     console.log('   ✓ 数据库已连接\n');
     
     // Ask for operation mode
@@ -180,8 +188,30 @@ async function setupMainGroupQuick(
   
   console.log('   ✓ 数据库已连接\n');
   
-  const mainJid = await question('   请输入群组 JID（例如：qq:group:123456 或 qq:c2c:789012）：');
-  const mainName = await question('   请输入群组名称（例如："AI 助手主群"）：');
+  // Generate random JID and group name
+  const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 位随机数
+  const suggestedJid = `qq:group:${randomNum}`;
+  const suggestedName = `AI 助手主群-${randomNum}`;
+  
+  console.log(`   推荐配置：`);
+  console.log(`   - JID: ${suggestedJid}`);
+  console.log(`   - 群组名称：${suggestedName}`);
+  console.log('');
+  
+  const useSuggested = await yesNo('   是否使用推荐配置？（推荐）', true);
+  
+  let mainJid: string;
+  let mainName: string;
+  
+  if (useSuggested) {
+    mainJid = suggestedJid;
+    mainName = suggestedName;
+    console.log('   ✓ 使用推荐配置');
+  } else {
+    mainJid = await question('   请输入群组 JID（例如：qq:group:123456 或 qq:c2c:789012）：');
+    mainName = await question('   请输入群组名称（例如："AI 助手主群"）：');
+  }
+  
   const mainTrigger = await question('   请输入触发词（默认：@Andy）：');
   const mainRequiresTrigger = await yesNo('   消息是否需要以触发词开头？', false);
 
@@ -218,8 +248,30 @@ async function setupSingleGroup(
   
   console.log('   ✓ 数据库已连接\n');
   
-  const groupJid = await question('   请输入群组 JID（例如：qq:group:123456 或 qq:c2c:789012）：');
-  const groupName = await question('   请输入群组名称（例如："AI 助手测试群"）：');
+  // Generate random JID and group name
+  const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 位随机数
+  const suggestedJid = `qq:group:${randomNum}`;
+  const suggestedName = `AI 助手群组-${randomNum}`;
+  
+  console.log(`   推荐配置：`);
+  console.log(`   - JID: ${suggestedJid}`);
+  console.log(`   - 群组名称：${suggestedName}`);
+  console.log('');
+  
+  const useSuggested = await yesNo('   是否使用推荐配置？（推荐）', true);
+  
+  let groupJid: string;
+  let groupName: string;
+  
+  if (useSuggested) {
+    groupJid = suggestedJid;
+    groupName = suggestedName;
+    console.log('   ✓ 使用推荐配置');
+  } else {
+    groupJid = await question('   请输入群组 JID（例如：qq:group:123456 或 qq:c2c:789012）：');
+    groupName = await question('   请输入群组名称（例如："AI 助手测试群"）：');
+  }
+  
   const groupTrigger = await question('   请输入触发词（默认：@Andy）：');
   const groupRequiresTrigger = await yesNo('   消息是否需要以触发词开头？', false);
 
