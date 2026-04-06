@@ -47,6 +47,7 @@ export async function run(_args: string[]): Promise<void> {
     // Temporarily suppress info logs during setup
     const originalLevel = process.env.LOG_LEVEL;
     process.env.LOG_LEVEL = 'error';
+    logger.level = 'error'; // Directly set logger level
     
     console.log('\n╔══════════════════════════════════════════════════════════════╗');
     console.log('║              Groups Initialization Wizard                    ║');
@@ -64,8 +65,73 @@ export async function run(_args: string[]): Promise<void> {
     
     // Restore log level
     process.env.LOG_LEVEL = originalLevel;
+    logger.level = originalLevel || 'info';
     
     console.log('   ✓ 数据库已连接\n');
+    
+    // Check if there are existing groups
+    const existingGroups = db.exec('SELECT folder, jid, name FROM registered_groups');
+    const hasExistingGroups = existingGroups.length > 0 && existingGroups[0].values.length > 0;
+    
+    if (hasExistingGroups) {
+      console.log('⚠  检测到已配置的群组：\n');
+      existingGroups[0].values.forEach((row: any[]) => {
+        const [folder, jid, name] = row;
+        console.log(`   - ${name} (${folder})`);
+      });
+      console.log('');
+      
+      const action = await question('请选择操作：\n  1. 添加新群组\n  2. 删除所有群组并重新配置\n  0. 取消\n\n请输入选项 (0-2): ');
+      
+      if (action.trim() === '0') {
+        console.log('\n已取消配置。\n');
+        emitStatus('GROUPS_INIT', {
+          STATUS: 'cancelled',
+          LOG: 'logs/setup.log',
+        });
+        process.exit(0);
+      } else if (action.trim() === '2') {
+        // Delete all groups with warning
+        console.log('\n⚠️  ⚠️  ⚠️  警告 ⚠️  ⚠️  ⚠️');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('   此操作将删除：');
+        console.log('   1. 数据库中所有群组记录');
+        console.log('   2. groups/ 目录下所有群组文件夹');
+        console.log('');
+        console.log('   ⚠️  删除后无法恢复！');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        
+        const confirm = await question('   确定要删除所有群组吗？（输入 "yes" 确认）: ');
+        
+        if (confirm.trim().toLowerCase() === 'yes') {
+          // Delete all groups
+          console.log('\n   正在删除所有群组...');
+          
+          // Delete from database
+          db.exec('DELETE FROM registered_groups');
+          
+          // Delete group folders (except global)
+          const groupsDir = path.join(process.cwd(), 'groups');
+          if (fs.existsSync(groupsDir)) {
+            const folders = fs.readdirSync(groupsDir);
+            for (const folder of folders) {
+              if (folder !== 'global') {
+                const folderPath = path.join(groupsDir, folder);
+                const stat = fs.statSync(folderPath);
+                if (stat.isDirectory()) {
+                  fs.rmSync(folderPath, { recursive: true, force: true });
+                  console.log(`   ✓ 已删除：${folder}`);
+                }
+              }
+            }
+          }
+          
+          console.log('   ✓ 已删除所有群组\n');
+        } else {
+          console.log('\n   已取消删除操作。\n');
+        }
+      }
+    }
     
     // Ask for operation mode
     const mode = await question('请选择配置模式：\n  1. 快速配置主群组（推荐新手）\n  2. 快速配置单个普通群组\n  3. 完整配置向导（主群组 + 多个普通群组）\n  0. 取消\n\n请输入选项 (0-3): ');
@@ -382,7 +448,7 @@ function printSummary(db: Database): void {
   console.log('║                    群组配置摘要                              ║');
   console.log('╚══════════════════════════════════════════════════════════════╝\n');
 
-  const groups = db.exec('SELECT folder, jid, name, trigger, requires_trigger FROM registered_groups');
+  const groups = db.exec('SELECT folder, jid, name, trigger_pattern, requires_trigger FROM registered_groups');
   if (groups.length > 0 && groups[0].values.length > 0) {
     console.log('   已注册的群组：');
     groups[0].values.forEach((row: any[]) => {
