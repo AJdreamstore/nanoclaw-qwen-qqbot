@@ -315,16 +315,97 @@ if ($useDocker -eq "Y" -or $useDocker -eq "y") {
         exit 1
     }
     
-    # Update .env file
+    # Update .env file - clean up duplicates and set Docker mode
     if (Test-Path ".env") {
-        $envContent = Get-Content ".env" -Raw
-        $envContent = $envContent -replace 'NATIVE_MODE=.*', 'NATIVE_MODE=false'
-        Set-Content ".env" $envContent
+        # Read and clean .env file
+        $lines = Get-Content ".env"
+        $filteredLines = $lines | Where-Object { 
+            $_ -notmatch '^NATIVE_MODE=' -and 
+            $_ -notmatch '^QWEN_SANDBOX_TYPE=' -and 
+            $_ -notmatch '^QWEN_SANDBOX_WORKSPACE=' -and
+            $_ -notmatch '^#.*NATIVE_MODE=' -and 
+            $_ -notmatch '^#.*QWEN_SANDBOX_TYPE=' -and 
+            $_ -notmatch '^#.*QWEN_SANDBOX_WORKSPACE='
+        }
+        
+        # Add Docker configuration
+        $filteredLines += "NATIVE_MODE=false"
+        $filteredLines += "QWEN_SANDBOX_TYPE=docker"
+        $filteredLines += "QWEN_SANDBOX_WORKSPACE=/workspace/group"
+        
+        # Write back to .env
+        $filteredLines | Set-Content ".env"
         Write-Host "✓ .env 已配置为 Docker Sandbox 模式"
+        Write-Host ""
+        
+        # Pull Docker image immediately
+        Write-Host "╔══════════════════════════════════════════════════════════════╗"
+        Write-Host "║        拉取 Docker Sandbox 镜像                                   ║"
+        Write-Host "╚══════════════════════════════════════════════════════════════╝"
+        Write-Host ""
+        
+        # Get Qwen Code version
+        try {
+            $QWEN_VERSION = & qwen --version 2>&1 | Select-Object -First 1
+        } catch {
+            $QWEN_VERSION = "latest"
+        }
+        
+        if ([string]::IsNullOrWhiteSpace($QWEN_VERSION)) {
+            $QWEN_VERSION = "latest"
+        }
+        
+        Write-Host "✓ Qwen Code 版本：$QWEN_VERSION"
+        Write-Host ""
+        
+        # Check if image already exists
+        $existingImage = docker images --format "{{.Repository}}:{{.Tag}}" | Where-Object { $_ -like "ghcr.io/qwenlm/qwen-code*$QWEN_VERSION*" }
+        
+        if ($existingImage) {
+            Write-Host "✓ Docker Sandbox 镜像已存在"
+            Write-Host ""
+            docker images | Select-String "qwenlm"
+        } else {
+            Write-Host "正在拉取 Docker Sandbox 镜像 ghcr.io/qwenlm/qwen-code:$QWEN_VERSION ..."
+            Write-Host ""
+            
+            # Try to pull the image
+            if (docker pull "ghcr.io/qwenlm/qwen-code:$QWEN_VERSION") {
+                Write-Host ""
+                Write-Host "✓ Docker Sandbox 镜像拉取成功！"
+                Write-Host ""
+                docker images | Select-String "qwenlm"
+            } else {
+                Write-Host ""
+                Write-Host "⚠ Docker Sandbox 镜像拉取失败"
+                Write-Host ""
+                Write-Host "可能的原因："
+                Write-Host "  1. 网络连接问题（无法访问 ghcr.io）"
+                Write-Host "  2. 镜像版本不存在"
+                Write-Host ""
+                Write-Host "建议："
+                Write-Host "  1. 检查网络连接"
+                Write-Host "  2. 配置 Docker 镜像加速器"
+                Write-Host "  3. 或者选择原生模式（不使用 Docker Sandbox）"
+                Write-Host ""
+                $continue = Read-Host "是否继续？（镜像拉取失败，但仍可运行，只是无法使用 Docker Sandbox）[Y/n]"
+                
+                if ($continue -eq "N" -or $continue -eq "n") {
+                    Write-Host ""
+                    Write-Host "✗ 安装已取消"
+                    exit 1
+                } else {
+                    Write-Host ""
+                    Write-Host "✓ 继续安装（Docker Sandbox 可能无法使用）"
+                }
+            }
+        }
+        
+        Write-Host ""
     }
     
     Write-Host ""
-    Write-Host "注意：容器镜像将在首次运行或配置向导时构建"
+    Write-Host "注意：容器镜像已准备就绪"
     Write-Host ""
 } else {
     Write-Host "使用原生模式（Qwen Code 本地运行）"

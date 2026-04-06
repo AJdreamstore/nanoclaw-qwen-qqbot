@@ -410,11 +410,14 @@ case "$DOCKER_REPLY" in
             
             # Update .env to enable Docker Sandbox
             if [ -f ".env" ]; then
-                # Remove any existing NATIVE_MODE and QWEN_SANDBOX_TYPE lines
+                # Remove any existing NATIVE_MODE, QWEN_SANDBOX_TYPE and QWEN_SANDBOX_WORKSPACE lines
+                # Clean up duplicate or conflicting configuration
                 sed -i.bak '/^NATIVE_MODE=/d' .env
                 sed -i.bak '/^QWEN_SANDBOX_TYPE=/d' .env
+                sed -i.bak '/^QWEN_SANDBOX_WORKSPACE=/d' .env
                 sed -i.bak '/^# NATIVE_MODE=/d' .env
                 sed -i.bak '/^# QWEN_SANDBOX_TYPE=/d' .env
+                sed -i.bak '/^# QWEN_SANDBOX_WORKSPACE=/d' .env
                 rm -f .env.bak
                 
                 # Add Docker Sandbox configuration
@@ -423,8 +426,72 @@ case "$DOCKER_REPLY" in
                 echo "QWEN_SANDBOX_WORKSPACE=/workspace/group" >> .env
                 
                 echo "✓ .env 已配置为 Docker Sandbox 模式"
+                echo ""
+                
+                # Pull Docker image immediately
+                echo "╔══════════════════════════════════════════════════════════════╗"
+                echo "║        拉取 Docker Sandbox 镜像                                   ║"
+                echo "╚══════════════════════════════════════════════════════════════╝"
+                echo ""
+                
+                # Get Qwen Code version
+                QWEN_VERSION=$(qwen --version 2>/dev/null | head -n 1)
+                if [ -z "$QWEN_VERSION" ]; then
+                    QWEN_VERSION="latest"
+                fi
+                
+                echo "✓ Qwen Code 版本：$QWEN_VERSION"
+                echo ""
+                
+                # Check if image already exists
+                if docker images | grep -q "ghcr.io/qwenlm/qwen-code.*$QWEN_VERSION"; then
+                    echo "✓ Docker Sandbox 镜像已存在"
+                    echo ""
+                    docker images | grep qwenlm
+                else
+                    echo "正在拉取 Docker Sandbox 镜像 ghcr.io/qwenlm/qwen-code:$QWEN_VERSION ..."
+                    echo ""
+                    
+                    # Try to pull the image
+                    if docker pull ghcr.io/qwenlm/qwen-code:$QWEN_VERSION; then
+                        echo ""
+                        echo "✓ Docker Sandbox 镜像拉取成功！"
+                        echo ""
+                        docker images | grep qwenlm
+                    else
+                        echo ""
+                        echo "⚠ Docker Sandbox 镜像拉取失败"
+                        echo ""
+                        echo "可能的原因："
+                        echo "  1. 网络连接问题（无法访问 ghcr.io）"
+                        echo "  2. 镜像版本不存在"
+                        echo ""
+                        echo "建议："
+                        echo "  1. 检查网络连接"
+                        echo "  2. 配置 Docker 镜像加速器"
+                        echo "  3. 或者选择原生模式（不使用 Docker Sandbox）"
+                        echo ""
+                        echo "是否继续？（镜像拉取失败，但仍可运行，只是无法使用 Docker Sandbox）[Y/n]"
+                        printf "> "
+                        read CONTINUE
+                        
+                        case "$CONTINUE" in
+                            [Nn]*)
+                                echo ""
+                                echo "✗ 安装已取消"
+                                exit 1
+                                ;;
+                            *)
+                                echo ""
+                                echo "✓ 继续安装（Docker Sandbox 可能无法使用）"
+                                ;;
+                        esac
+                    fi
+                fi
+                
+                echo ""
             fi
-        else
+        fi
             # Docker not available, keep native mode
             if [ -f ".env" ]; then
                 sed -i.bak '/^NATIVE_MODE=/d' .env
