@@ -417,18 +417,30 @@ async function runNativeAgent(
 
     // Use spawn with full path to node executable
     // On Linux/macOS, use shell: true to allow command lookup in PATH
-    const child = spawn(process.execPath, [qwenCliPath, ...argsWithoutPromptFlag], {
-      cwd: workingDir,
-      env: {
-        ...process.env,
-        // Qwen Code will read API Key from ~/.qwen/settings.json or ~/.qwen/.env automatically
-        // No need to pass DASHSCOPE_API_KEY explicitly
-        // Set QWEN_SYSTEM_MD to override default system prompt (replaces "You are Qwen Code" with custom identity)
-        QWEN_SYSTEM_MD: systemMdPath,
-      },
-      stdio: ['pipe', 'pipe', 'pipe'],
-      shell: process.platform !== 'win32', // Enable shell on Linux/macOS for PATH lookup
-    });
+    let child;
+    if (qwenCliPath === 'qwen') {
+      // qwenCliPath is a command name, not a file path - execute it directly
+      child = spawn('qwen', argsWithoutPromptFlag, {
+        cwd: workingDir,
+        env: {
+          ...process.env,
+          QWEN_SYSTEM_MD: systemMdPath,
+        },
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: process.platform !== 'win32', // Enable shell on Linux/macOS for PATH lookup
+      });
+    } else {
+      // qwenCliPath is a file path - execute it with node
+      child = spawn(process.execPath, [qwenCliPath, ...argsWithoutPromptFlag], {
+        cwd: workingDir,
+        env: {
+          ...process.env,
+          QWEN_SYSTEM_MD: systemMdPath,
+        },
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: process.platform !== 'win32',
+      });
+    }
 
     onProcess(child, `native-${group.folder}`);
 
