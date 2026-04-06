@@ -25,16 +25,20 @@ export async function run(_args: string[]): Promise<void> {
 
   const question = (query: string): Promise<string> => {
     return new Promise((resolve) => {
-      rl.question(query, (answer) => resolve(answer));
+      rl.question(query, (answer) => {
+        // Trim and clean the answer to remove any extra characters
+        resolve(answer.trim());
+      });
     });
   };
 
   const yesNo = (query: string, defaultYes: boolean = true): Promise<boolean> => {
     return new Promise((resolve) => {
       rl.question(query + (defaultYes ? ' [Y/n] ' : ' [y/N] '), (answer) => {
-        if (answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') {
+        const ans = answer.trim().toLowerCase();
+        if (ans === 'y' || ans === 'yes') {
           resolve(true);
-        } else if (answer.toLowerCase() === 'n' || answer.toLowerCase() === 'no') {
+        } else if (ans === 'n' || ans === 'no') {
           resolve(false);
         } else {
           resolve(defaultYes);
@@ -164,7 +168,7 @@ export async function run(_args: string[]): Promise<void> {
     console.log('║                    群组配置总结                              ║');
     console.log('╚══════════════════════════════════════════════════════════════╝\n');
 
-    const groups = db.exec('SELECT folder, jid, name, trigger, requires_trigger FROM registered_groups');
+    const groups = db.exec('SELECT folder, jid, name, trigger_pattern, requires_trigger FROM registered_groups');
     if (groups.length > 0 && groups[0].values.length > 0) {
       console.log('   已注册的群组：');
       groups[0].values.forEach((row: any[]) => {
