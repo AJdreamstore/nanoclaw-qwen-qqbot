@@ -491,7 +491,7 @@ case "$DOCKER_REPLY" in
                 
                 echo ""
             fi
-        fi
+        else
             # Docker not available, keep native mode
             if [ -f ".env" ]; then
                 sed -i.bak '/^NATIVE_MODE=/d' .env
