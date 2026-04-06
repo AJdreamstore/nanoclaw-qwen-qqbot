@@ -289,7 +289,8 @@ async function runNativeAgent(
   // Add Sandbox parameters if enabled
   if (!NATIVE_MODE && QWEN_SANDBOX_TYPE !== 'none') {
     qwenArgs.push('--sandbox', QWEN_SANDBOX_TYPE);
-    qwenArgs.push('--sandbox-workspace', QWEN_SANDBOX_WORKSPACE);
+    // Use --include-directories to specify the workspace directory
+    qwenArgs.push('--include-directories', QWEN_SANDBOX_WORKSPACE);
     
     logger.info({ 
       sandboxType: QWEN_SANDBOX_TYPE,
