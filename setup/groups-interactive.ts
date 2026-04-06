@@ -160,12 +160,13 @@ async function registerGroup(
   }
 
   // Insert into database
+  const now = new Date().toISOString();
   const stmt = db.prepare(`
-    INSERT INTO registered_groups (folder, jid, name, trigger, requires_trigger)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO registered_groups (folder, jid, name, trigger_pattern, requires_trigger, added_at)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
   
-  stmt.run(folder, group.jid, group.name, group.trigger, group.requiresTrigger ? 1 : 0);
+  stmt.run(folder, group.jid, group.name, group.trigger, group.requiresTrigger ? 1 : 0, now);
 }
 
 /**
