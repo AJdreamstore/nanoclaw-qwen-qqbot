@@ -448,44 +448,66 @@ case "$DOCKER_REPLY" in
                     echo "✓ Docker Sandbox 镜像已存在"
                     echo ""
                     docker images | grep qwenlm
+                    
+                    # Record the image in .env
+                    echo "QWEN_SANDBOX_IMAGE=ghcr.io/qwenlm/qwen-code:$QWEN_VERSION" >> .env
                 else
+                    # Try to pull the specific version first
                     echo "正在拉取 Docker Sandbox 镜像 ghcr.io/qwenlm/qwen-code:$QWEN_VERSION ..."
                     echo ""
                     
-                    # Try to pull the image
-                    if docker pull ghcr.io/qwenlm/qwen-code:$QWEN_VERSION; then
+                    if ! docker pull ghcr.io/qwenlm/qwen-code:$QWEN_VERSION 2>/dev/null; then
+                        # Version-specific pull failed, try latest
+                        echo ""
+                        echo "⚠ 版本 $QWEN_VERSION 的镜像不存在，尝试拉取 latest 版本..."
+                        echo ""
+                        
+                        if docker pull ghcr.io/qwenlm/qwen-code:latest; then
+                            echo ""
+                            echo "✓ Docker Sandbox 镜像拉取成功（latest 版本）！"
+                            echo ""
+                            docker images | grep qwenlm
+                            
+                            # Record latest in .env
+                            echo "QWEN_SANDBOX_IMAGE=ghcr.io/qwenlm/qwen-code:latest" >> .env
+                        else
+                            echo ""
+                            echo "⚠ Docker Sandbox 镜像拉取失败"
+                            echo ""
+                            echo "可能的原因："
+                            echo "  1. 网络连接问题（无法访问 ghcr.io）"
+                            echo "  2. 镜像版本不存在"
+                            echo ""
+                            echo "建议："
+                            echo "  1. 检查网络连接"
+                            echo "  2. 配置 Docker 镜像加速器"
+                            echo "  3. 或者选择原生模式（不使用 Docker Sandbox）"
+                            echo ""
+                            echo "是否继续？（镜像拉取失败，但仍可运行，只是无法使用 Docker Sandbox）[Y/n]"
+                            printf "> "
+                            read CONTINUE
+                            
+                            case "$CONTINUE" in
+                                [Nn]*)
+                                    echo ""
+                                    echo "✗ 安装已取消"
+                                    exit 1
+                                    ;;
+                                *)
+                                    echo ""
+                                    echo "✓ 继续安装（Docker Sandbox 可能无法使用）"
+                                    ;;
+                            esac
+                        fi
+                    else
+                        # Version-specific pull succeeded
                         echo ""
                         echo "✓ Docker Sandbox 镜像拉取成功！"
                         echo ""
                         docker images | grep qwenlm
-                    else
-                        echo ""
-                        echo "⚠ Docker Sandbox 镜像拉取失败"
-                        echo ""
-                        echo "可能的原因："
-                        echo "  1. 网络连接问题（无法访问 ghcr.io）"
-                        echo "  2. 镜像版本不存在"
-                        echo ""
-                        echo "建议："
-                        echo "  1. 检查网络连接"
-                        echo "  2. 配置 Docker 镜像加速器"
-                        echo "  3. 或者选择原生模式（不使用 Docker Sandbox）"
-                        echo ""
-                        echo "是否继续？（镜像拉取失败，但仍可运行，只是无法使用 Docker Sandbox）[Y/n]"
-                        printf "> "
-                        read CONTINUE
                         
-                        case "$CONTINUE" in
-                            [Nn]*)
-                                echo ""
-                                echo "✗ 安装已取消"
-                                exit 1
-                                ;;
-                            *)
-                                echo ""
-                                echo "✓ 继续安装（Docker Sandbox 可能无法使用）"
-                                ;;
-                        esac
+                        # Record the image in .env
+                        echo "QWEN_SANDBOX_IMAGE=ghcr.io/qwenlm/qwen-code:$QWEN_VERSION" >> .env
                     fi
                 fi
                 

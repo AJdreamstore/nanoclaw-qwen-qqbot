@@ -20,6 +20,7 @@ import {
   QWEN_OUTPUT_FORMAT,
   QWEN_SANDBOX_TYPE,
   QWEN_SANDBOX_WORKSPACE,
+  QWEN_SANDBOX_IMAGE,
 } from './config.js';
 import { readEnvFile } from './env.js';
 import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
@@ -292,8 +293,14 @@ async function runNativeAgent(
     // Use --include-directories to specify the workspace directory
     qwenArgs.push('--include-directories', QWEN_SANDBOX_WORKSPACE);
     
+    // Add sandbox image if specified (from .env QWEN_SANDBOX_IMAGE)
+    if (QWEN_SANDBOX_IMAGE) {
+      qwenArgs.push('--sandbox-image', QWEN_SANDBOX_IMAGE);
+    }
+    
     logger.info({ 
       sandboxType: QWEN_SANDBOX_TYPE,
+      sandboxImage: QWEN_SANDBOX_IMAGE || 'default',
       workspace: QWEN_SANDBOX_WORKSPACE,
       nativeMode: NATIVE_MODE
     }, 'Using Qwen Code Sandbox');

@@ -365,39 +365,64 @@ if ($useDocker -eq "Y" -or $useDocker -eq "y") {
             Write-Host "✓ Docker Sandbox 镜像已存在"
             Write-Host ""
             docker images | Select-String "qwenlm"
+            
+            # Record the image in .env
+            Add-Content ".env" "QWEN_SANDBOX_IMAGE=ghcr.io/qwenlm/qwen-code:$QWEN_VERSION"
         } else {
+            # Try to pull the specific version first
             Write-Host "正在拉取 Docker Sandbox 镜像 ghcr.io/qwenlm/qwen-code:$QWEN_VERSION ..."
             Write-Host ""
             
-            # Try to pull the image
-            if (docker pull "ghcr.io/qwenlm/qwen-code:$QWEN_VERSION") {
+            # Try version-specific pull (suppress error output)
+            $versionPull = docker pull "ghcr.io/qwenlm/qwen-code:$QWEN_VERSION" 2>&1
+            
+            if (-not $?) {
+                # Version-specific pull failed, try latest
+                Write-Host ""
+                Write-Host "⚠ 版本 $QWEN_VERSION 的镜像不存在，尝试拉取 latest 版本..."
+                Write-Host ""
+                
+                if (docker pull "ghcr.io/qwenlm/qwen-code:latest") {
+                    Write-Host ""
+                    Write-Host "✓ Docker Sandbox 镜像拉取成功（latest 版本）！"
+                    Write-Host ""
+                    docker images | Select-String "qwenlm"
+                    
+                    # Record latest in .env
+                    Add-Content ".env" "QWEN_SANDBOX_IMAGE=ghcr.io/qwenlm/qwen-code:latest"
+                } else {
+                    Write-Host ""
+                    Write-Host "⚠ Docker Sandbox 镜像拉取失败"
+                    Write-Host ""
+                    Write-Host "可能的原因："
+                    Write-Host "  1. 网络连接问题（无法访问 ghcr.io）"
+                    Write-Host "  2. 镜像版本不存在"
+                    Write-Host ""
+                    Write-Host "建议："
+                    Write-Host "  1. 检查网络连接"
+                    Write-Host "  2. 配置 Docker 镜像加速器"
+                    Write-Host "  3. 或者选择原生模式（不使用 Docker Sandbox）"
+                    Write-Host ""
+                    $continue = Read-Host "是否继续？（镜像拉取失败，但仍可运行，只是无法使用 Docker Sandbox）[Y/n]"
+                    
+                    if ($continue -eq "N" -or $continue -eq "n") {
+                        Write-Host ""
+                        Write-Host "✗ 安装已取消"
+                        exit 1
+                    } else {
+                        Write-Host ""
+                        Write-Host "✓ 继续安装（Docker Sandbox 可能无法使用）"
+                    }
+                }
+            } else {
+                # Version-specific pull succeeded
                 Write-Host ""
                 Write-Host "✓ Docker Sandbox 镜像拉取成功！"
                 Write-Host ""
                 docker images | Select-String "qwenlm"
-            } else {
-                Write-Host ""
-                Write-Host "⚠ Docker Sandbox 镜像拉取失败"
-                Write-Host ""
-                Write-Host "可能的原因："
-                Write-Host "  1. 网络连接问题（无法访问 ghcr.io）"
-                Write-Host "  2. 镜像版本不存在"
-                Write-Host ""
-                Write-Host "建议："
-                Write-Host "  1. 检查网络连接"
-                Write-Host "  2. 配置 Docker 镜像加速器"
-                Write-Host "  3. 或者选择原生模式（不使用 Docker Sandbox）"
-                Write-Host ""
-                $continue = Read-Host "是否继续？（镜像拉取失败，但仍可运行，只是无法使用 Docker Sandbox）[Y/n]"
                 
-                if ($continue -eq "N" -or $continue -eq "n") {
-                    Write-Host ""
-                    Write-Host "✗ 安装已取消"
-                    exit 1
-                } else {
-                    Write-Host ""
-                    Write-Host "✓ 继续安装（Docker Sandbox 可能无法使用）"
-                }
+                # Record the image in .env
+                Add-Content ".env" "QWEN_SANDBOX_IMAGE=ghcr.io/qwenlm/qwen-code:$QWEN_VERSION"
             }
         }
         

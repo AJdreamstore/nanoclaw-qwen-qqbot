@@ -17,6 +17,7 @@ const envConfig = readEnvFile([
   'QQ_HEARTBEAT_INTERVAL',
   'QWEN_SANDBOX_TYPE',
   'QWEN_SANDBOX_WORKSPACE',
+  'QWEN_SANDBOX_IMAGE',
 ]);
 
 export const ASSISTANT_NAME =
@@ -37,6 +38,8 @@ export const QWEN_SANDBOX_TYPE =
   process.env.QWEN_SANDBOX_TYPE || envConfig.QWEN_SANDBOX_TYPE || 'none';
 export const QWEN_SANDBOX_WORKSPACE =
   process.env.QWEN_SANDBOX_WORKSPACE || envConfig.QWEN_SANDBOX_WORKSPACE || '/workspace/group';
+export const QWEN_SANDBOX_IMAGE =
+  process.env.QWEN_SANDBOX_IMAGE || envConfig.QWEN_SANDBOX_IMAGE;
 
 // QQ Bot configuration
 export const QQ_HEARTBEAT_INTERVAL = parseInt(
