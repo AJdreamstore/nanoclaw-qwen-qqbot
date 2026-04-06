@@ -231,7 +231,7 @@ async function runNativeAgent(
 ): Promise<ContainerOutput> {
   logger.info(
     { group: group.name, isMain: input.isMain },
-    'Running agent in native mode (no container)'
+    'Running agent on host (Qwen Code in Docker Sandbox)'
   );
 
   // Create settings.json in group folder to configure Qwen Code
