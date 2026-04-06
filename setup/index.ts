@@ -265,6 +265,9 @@ async function interactiveWizard(): Promise<void> {
       console.log('\n   正在启动群组配置...');
       console.log('');
       
+      // Close the readline interface before calling groups-interactive
+      rl.close();
+      
       // Import group setup module
       const groupsModule = await import('./groups-interactive.js');
       await groupsModule.run([]);

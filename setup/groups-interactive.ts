@@ -26,8 +26,7 @@ export async function run(_args: string[]): Promise<void> {
   const question = (query: string): Promise<string> => {
     return new Promise((resolve) => {
       rl.question(query, (answer) => {
-        // Trim and clean the answer to remove any extra characters
-        resolve(answer.trim());
+        resolve(answer);
       });
     });
   };
@@ -107,7 +106,7 @@ export async function run(_args: string[]): Promise<void> {
         
         const confirm = await question('   确定要删除所有群组吗？（输入 "yes" 确认）: ');
         
-        if (confirm.trim().toLowerCase() === 'yes') {
+        if (confirm.toLowerCase() === 'yes') {
           // Delete all groups
           console.log('\n   正在删除所有群组...');
           
@@ -136,6 +135,9 @@ export async function run(_args: string[]): Promise<void> {
         }
       }
     }
+    
+    // Small delay to ensure stdin is ready
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     // Ask for operation mode
     const mode = await question('请选择配置模式：\n  1. 快速配置主群组（推荐新手）\n  2. 快速配置单个普通群组\n  3. 完整配置向导（主群组 + 多个普通群组）\n  0. 取消\n\n请输入选项 (0-3): ');
