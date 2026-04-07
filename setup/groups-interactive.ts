@@ -17,6 +17,37 @@ interface GroupInfo {
   requiresTrigger: boolean;
 }
 
+/**
+ * Ensure global directory and default files exist
+ */
+async function ensureGlobalFiles(): Promise<void> {
+  const globalDir = path.join(process.cwd(), 'groups', 'global');
+  if (!fs.existsSync(globalDir)) {
+    fs.mkdirSync(globalDir, { recursive: true });
+  }
+  
+  // Create default SYSTEM.md if it doesn't exist
+  const globalSystemMd = path.join(globalDir, 'SYSTEM.md');
+  if (!fs.existsSync(globalSystemMd)) {
+    const defaultSystemMd = `You are Qwen Code, a helpful AI assistant.
+Your name is Qwen.
+`;
+    fs.writeFileSync(globalSystemMd, defaultSystemMd);
+    logger.info('Created default SYSTEM.md');
+  }
+  
+  // Create default QWEN.md if it doesn't exist
+  const globalQwenMd = path.join(globalDir, 'QWEN.md');
+  if (!fs.existsSync(globalQwenMd)) {
+    const defaultQwenMd = `# Qwen Code Configuration
+
+This file contains the configuration for Qwen Code AI assistant.
+`;
+    fs.writeFileSync(globalQwenMd, defaultQwenMd);
+    logger.info('Created default QWEN.md');
+  }
+}
+
 export async function run(_args: string[]): Promise<void> {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -72,12 +103,15 @@ export async function run(_args: string[]): Promise<void> {
       await db.initialize();
       
       console.log('   ✓ 数据库已初始化\n');
-    }
-    
-    const db = new Database(dbPath);
-    await db.initialize();
-    
-    console.log('   ✓ 数据库已连接\n');
+  }
+  
+  const db = new Database(dbPath);
+  await db.initialize();
+  
+  console.log('   ✓ 数据库已连接\n');
+  
+  // Ensure global files exist
+  await ensureGlobalFiles();
     
     // Check if there are existing groups
     const existingGroups = db.exec('SELECT folder, jid, name FROM registered_groups');
@@ -273,6 +307,9 @@ async function setupMainGroupQuick(
   
   console.log('   ✓ 数据库已连接\n');
   
+  // Ensure global files exist
+  await ensureGlobalFiles();
+  
   // Ask for assistant name first
   console.log('📋 AI 助手配置：');
   const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
@@ -358,7 +395,6 @@ async function setupSingleGroup(
   const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
   
   // Update global SYSTEM.md with assistant name
-  const globalSystemMd = path.join(process.cwd(), 'groups', 'global', 'SYSTEM.md');
   if (fs.existsSync(globalSystemMd)) {
     let systemContent = fs.readFileSync(globalSystemMd, 'utf-8');
     systemContent = systemContent.replace(/You are \w+/i, `You are ${assistantName}`);
