@@ -61,14 +61,14 @@ export async function run(_args: string[]): Promise<void> {
     if (!fs.existsSync(dbPath)) {
       console.log('   ℹ 数据库不存在，正在初始化...\n');
       
-      // Create store directory if it doesn't exist
+      // Create directory if it doesn't exist
       if (!fs.existsSync(STORE_DIR)) {
         fs.mkdirSync(STORE_DIR, { recursive: true });
       }
       
-      // Import and initialize database
+      // Import and initialize database with create option
       const { Database } = await import('./db-helper.js');
-      const db = new Database(dbPath);
+      const db = new Database(dbPath, { create: true });
       await db.initialize();
       
       console.log('   ✓ 数据库已初始化\n');
@@ -266,7 +266,7 @@ async function setupMainGroupQuick(
     if (!fs.existsSync(STORE_DIR)) {
       fs.mkdirSync(STORE_DIR, { recursive: true });
     }
-    const db = new Database(dbPath);
+    const db = new Database(dbPath, { create: true });
     await db.initialize();
     console.log('   ✓ 数据库已初始化\n');
   }
@@ -346,7 +346,7 @@ async function setupSingleGroup(
     if (!fs.existsSync(STORE_DIR)) {
       fs.mkdirSync(STORE_DIR, { recursive: true });
     }
-    const db = new Database(dbPath);
+    const db = new Database(dbPath, { create: true });
     await db.initialize();
     console.log('   ✓ 数据库已初始化\n');
   }
@@ -430,7 +430,7 @@ async function setupFullWizard(
     if (!fs.existsSync(STORE_DIR)) {
       fs.mkdirSync(STORE_DIR, { recursive: true });
     }
-    const db = new Database(dbPath);
+    const db = new Database(dbPath, { create: true });
     await db.initialize();
     console.log('   ✓ 数据库已初始化\n');
   }

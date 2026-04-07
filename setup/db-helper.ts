@@ -109,12 +109,22 @@ export class Database {
   private readonlyMode: boolean;
   private engine: 'better-sqlite3' | 'sql.js';
 
-  constructor(dbPath: string, options?: { readonly?: boolean }) {
+  constructor(dbPath: string, options?: { readonly?: boolean; create?: boolean }) {
     this.dbPath = dbPath;
     this.readonlyMode = options?.readonly || false;
 
     if (!fs.existsSync(dbPath)) {
-      throw new Error(`Database not found: ${dbPath}`);
+      if (options?.create) {
+        // Create directory if it doesn't exist
+        const dir = path.dirname(dbPath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        // Create empty database file
+        fs.writeFileSync(dbPath, Buffer.from([]));
+      } else {
+        throw new Error(`Database not found: ${dbPath}`);
+      }
     }
   }
 
