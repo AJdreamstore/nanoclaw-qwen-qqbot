@@ -322,6 +322,8 @@ if [ "$HAS_OLD_GROUPS" = true ] || [ "$DB_EXISTS" = true ]; then
         
         echo "✓ 历史数据已清除"
         echo ""
+        echo "ℹ 数据库将在首次运行时自动创建"
+        echo ""
     else
         echo ""
         echo "⚠  保留历史数据（如果遇到问题，请手动清理）"

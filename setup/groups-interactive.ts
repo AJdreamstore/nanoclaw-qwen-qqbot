@@ -59,16 +59,23 @@ export async function run(_args: string[]): Promise<void> {
     // Initialize database
     const dbPath = path.join(STORE_DIR, 'messages.db');
     if (!fs.existsSync(dbPath)) {
-      console.error('   ✗ 数据库不存在。请先运行应用程序初始化数据库。\n');
-      process.exit(1);
+      console.log('   ℹ 数据库不存在，正在初始化...\n');
+      
+      // Create store directory if it doesn't exist
+      if (!fs.existsSync(STORE_DIR)) {
+        fs.mkdirSync(STORE_DIR, { recursive: true });
+      }
+      
+      // Import and initialize database
+      const { Database } = await import('./db-helper.js');
+      const db = new Database(dbPath);
+      await db.initialize();
+      
+      console.log('   ✓ 数据库已初始化\n');
     }
     
     const db = new Database(dbPath);
     await db.initialize();
-    
-    // Restore log level
-    process.env.LOG_LEVEL = originalLevel;
-    logger.level = originalLevel || 'info';
     
     console.log('   ✓ 数据库已连接\n');
     
@@ -255,8 +262,13 @@ async function setupMainGroupQuick(
   // Check database
   const dbPath = path.join(STORE_DIR, 'messages.db');
   if (!fs.existsSync(dbPath)) {
-    console.error('   ✗ 数据库不存在。请先运行应用程序初始化数据库。\n');
-    process.exit(1);
+    console.log('   ℹ 数据库不存在，正在初始化...\n');
+    if (!fs.existsSync(STORE_DIR)) {
+      fs.mkdirSync(STORE_DIR, { recursive: true });
+    }
+    const db = new Database(dbPath);
+    await db.initialize();
+    console.log('   ✓ 数据库已初始化\n');
   }
   
   console.log('   ✓ 数据库已连接\n');
@@ -330,8 +342,13 @@ async function setupSingleGroup(
   // Check database
   const dbPath = path.join(STORE_DIR, 'messages.db');
   if (!fs.existsSync(dbPath)) {
-    console.error('   ✗ 数据库不存在。请先运行应用程序初始化数据库。\n');
-    process.exit(1);
+    console.log('   ℹ 数据库不存在，正在初始化...\n');
+    if (!fs.existsSync(STORE_DIR)) {
+      fs.mkdirSync(STORE_DIR, { recursive: true });
+    }
+    const db = new Database(dbPath);
+    await db.initialize();
+    console.log('   ✓ 数据库已初始化\n');
   }
   
   console.log('   ✓ 数据库已连接\n');
@@ -409,8 +426,13 @@ async function setupFullWizard(
   // Check database
   const dbPath = path.join(STORE_DIR, 'messages.db');
   if (!fs.existsSync(dbPath)) {
-    console.error('   ✗ 数据库不存在。请先运行应用程序初始化数据库。\n');
-    process.exit(1);
+    console.log('   ℹ 数据库不存在，正在初始化...\n');
+    if (!fs.existsSync(STORE_DIR)) {
+      fs.mkdirSync(STORE_DIR, { recursive: true });
+    }
+    const db = new Database(dbPath);
+    await db.initialize();
+    console.log('   ✓ 数据库已初始化\n');
   }
   
   console.log('   ✓ 数据库已连接\n');
