@@ -195,13 +195,6 @@ async function runQuery(
     globalQwenMd = fs.readFileSync(globalQwenMdPath, 'utf-8');
   }
 
-  // Create settings.json in /workspace/group/.qwen/ to configure Qwen Code
-  const groupQwenDir = '/workspace/group/.qwen';
-  if (!fs.existsSync(groupQwenDir)) {
-    fs.mkdirSync(groupQwenDir, { recursive: true });
-  }
-  const settingsFile = path.join(groupQwenDir, 'settings.json');
-  
   // Write QWEN.md to group directory only if it doesn't exist
   // This preserves user-customized names (e.g., "小猫", "小狗") in existing sessions
   const qwenMdPath = '/workspace/group/QWEN.md';
@@ -220,19 +213,6 @@ async function runQuery(
       fs.writeFileSync(systemMdPath, globalSystemMd);
       log(`Wrote SYSTEM.md to ${systemMdPath} (first time)`);
     }
-  }
-  
-  if (!fs.existsSync(settingsFile)) {
-    fs.writeFileSync(settingsFile, JSON.stringify({
-      env: {
-        // Enable agent swarms (subagent orchestration)
-        QWEN_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
-        // Enable Qwen Code's memory feature
-        QWEN_CODE_DISABLE_AUTO_MEMORY: '0',
-      },
-      $version: 3,
-    }, null, 2) + '\n');
-    log(`Created settings.json at ${settingsFile}`);
   }
 
   const extraDirs: string[] = [];

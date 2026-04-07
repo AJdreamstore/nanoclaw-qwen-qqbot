@@ -261,6 +261,83 @@ EOF
 fi
 echo ""
 
+# Check for existing group data
+GROUPS_DIR_EXISTS=false
+HAS_OLD_GROUPS=false
+OLD_GROUP_FOLDERS=()
+
+if [ -d "groups" ]; then
+    GROUPS_DIR_EXISTS=true
+    # Check for qq-* folders (old naming)
+    for dir in groups/qq-*/; do
+        if [ -d "$dir" ]; then
+            HAS_OLD_GROUPS=true
+            OLD_GROUP_FOLDERS+=("$(basename "$dir")")
+        fi
+    done
+fi
+
+# Check for existing database
+DB_EXISTS=false
+if [ -f "store/messages.db" ]; then
+    DB_EXISTS=true
+fi
+
+if [ "$HAS_OLD_GROUPS" = true ] || [ "$DB_EXISTS" = true ]; then
+    echo "⚠  检测到历史数据："
+    echo ""
+    
+    if [ "$HAS_OLD_GROUPS" = true ]; then
+        echo "  旧的群组目录："
+        for folder in "${OLD_GROUP_FOLDERS[@]}"; do
+            echo "    - groups/$folder"
+        done
+        echo ""
+    fi
+    
+    if [ "$DB_EXISTS" = true ]; then
+        echo "  数据库文件："
+        echo "    - store/messages.db"
+        echo ""
+    fi
+    
+    echo "这些旧数据可能导致问题（目录命名冲突、会话混乱等）。"
+    echo ""
+    read -p "是否清除这些历史数据？[Y/n]: " CLEAN_OLD
+    
+    if [[ "$CLEAN_OLD" != [Nn]* ]]; then
+        echo ""
+        
+        # Delete old group folders
+        if [ "$HAS_OLD_GROUPS" = true ]; then
+            echo "正在删除旧的群组目录..."
+            for folder in "${OLD_GROUP_FOLDERS[@]}"; do
+                rm -rf "groups/$folder"
+                echo "  ✓ 已删除：groups/$folder"
+            done
+            echo ""
+        fi
+        
+        # Delete database
+        if [ "$DB_EXISTS" = true ]; then
+            echo "正在删除数据库..."
+            rm -f "store/messages.db"
+            echo "  ✓ 已删除：store/messages.db"
+            echo ""
+        fi
+        
+        echo "✓ 历史数据已清除"
+        echo ""
+    else
+        echo ""
+        echo "⚠  保留历史数据（如果遇到问题，请手动清理）"
+        echo ""
+    fi
+else
+    echo "✓ 没有检测到历史数据"
+    echo ""
+fi
+
 # Ask about Docker Sandbox mode
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║           Docker Sandbox 配置                                   ║"

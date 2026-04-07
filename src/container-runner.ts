@@ -197,46 +197,28 @@ async function runNativeAgent(
     isMain: input.isMain,
   }, 'Using working directory for AI');
 
-  // Create settings.json in group folder to configure Qwen Code
-  // Qwen Code reads settings from <cwd>/.qwen/settings.json
-  const groupQwenDir = path.join(workingDir, '.qwen');
-  fs.mkdirSync(groupQwenDir, { recursive: true });
-  const settingsFile = path.join(groupQwenDir, 'settings.json');
+  // Copy global QWEN.md to group directory if it doesn't exist (non-main groups only)
+  // This preserves user-customized names (e.g., "小猫", "小狗") in existing sessions
+  const groupQwenMdPath = path.join(workingDir, 'QWEN.md');
+  if (!input.isMain && !fs.existsSync(groupQwenMdPath)) {
+    const globalQwenMdPath = path.join(GROUPS_DIR, 'global', 'QWEN.md');
+    if (fs.existsSync(globalQwenMdPath)) {
+      const globalQwenMd = fs.readFileSync(globalQwenMdPath, 'utf-8');
+      fs.writeFileSync(groupQwenMdPath, globalQwenMd);
+      logger.info({ group: group.folder, target: groupQwenMdPath, firstLine: globalQwenMd.split('\n')[0] }, 'Copied global QWEN.md to group directory (first time)');
+    }
+  }
   
-  if (!fs.existsSync(settingsFile)) {
-    // Copy global QWEN.md to group directory if it doesn't exist (non-main groups only)
-    // This preserves user-customized names (e.g., "小猫", "小狗") in existing sessions
-    const groupQwenMdPath = path.join(workingDir, 'QWEN.md');
-    if (!input.isMain && !fs.existsSync(groupQwenMdPath)) {
-      const globalQwenMdPath = path.join(GROUPS_DIR, 'global', 'QWEN.md');
-      if (fs.existsSync(globalQwenMdPath)) {
-        const globalQwenMd = fs.readFileSync(globalQwenMdPath, 'utf-8');
-        fs.writeFileSync(groupQwenMdPath, globalQwenMd);
-        logger.info({ group: group.folder, target: groupQwenMdPath, firstLine: globalQwenMd.split('\n')[0] }, 'Copied global QWEN.md to group directory (first time)');
-      }
+  // Copy global SYSTEM.md to group directory if it doesn't exist (non-main groups only)
+  // This overrides the default "You are Qwen Code" system prompt
+  const groupSystemMdPath = path.join(workingDir, 'SYSTEM.md');
+  if (!input.isMain && !fs.existsSync(groupSystemMdPath)) {
+    const globalSystemMdPath = path.join(GROUPS_DIR, 'global', 'SYSTEM.md');
+    if (fs.existsSync(globalSystemMdPath)) {
+      const globalSystemMd = fs.readFileSync(globalSystemMdPath, 'utf-8');
+      fs.writeFileSync(groupSystemMdPath, globalSystemMd);
+      logger.info({ group: group.folder, target: groupSystemMdPath }, 'Copied global SYSTEM.md to group directory (first time)');
     }
-    
-    // Copy global SYSTEM.md to group directory if it doesn't exist (non-main groups only)
-    // This overrides the default "You are Qwen Code" system prompt
-    const groupSystemMdPath = path.join(workingDir, 'SYSTEM.md');
-    if (!input.isMain && !fs.existsSync(groupSystemMdPath)) {
-      const globalSystemMdPath = path.join(GROUPS_DIR, 'global', 'SYSTEM.md');
-      if (fs.existsSync(globalSystemMdPath)) {
-        const globalSystemMd = fs.readFileSync(globalSystemMdPath, 'utf-8');
-        fs.writeFileSync(groupSystemMdPath, globalSystemMd);
-        logger.info({ group: group.folder, target: groupSystemMdPath }, 'Copied global SYSTEM.md to group directory (first time)');
-      }
-    }
-    
-    fs.writeFileSync(settingsFile, JSON.stringify({
-      env: {
-        // Enable agent swarms (subagent orchestration)
-        QWEN_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
-        // Enable Qwen Code's memory feature (persists user preferences between sessions)
-        QWEN_CODE_DISABLE_AUTO_MEMORY: '0',
-      },
-      $version: 3,
-    }, null, 2) + '\n');
   }
 
   // Build qwen code command
@@ -615,9 +597,6 @@ export async function runContainerAgent(
     'Spawning container agent',
   );
 
-  const logsDir = path.join(groupDir, 'logs');
-  fs.mkdirSync(logsDir, { recursive: true });
-
   return new Promise((resolve) => {
     const container = spawn(CONTAINER_RUNTIME_BIN, containerArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -745,18 +724,6 @@ export async function runContainerAgent(
       const duration = Date.now() - startTime;
 
       if (timedOut) {
-        const ts = new Date().toISOString().replace(/[:.]/g, '-');
-        const timeoutLog = path.join(logsDir, `container-${ts}.log`);
-        fs.writeFileSync(timeoutLog, [
-          `=== Container Run Log (TIMEOUT) ===`,
-          `Timestamp: ${new Date().toISOString()}`,
-          `Group: ${group.name}`,
-          `Container: ${containerName}`,
-          `Duration: ${duration}ms`,
-          `Exit Code: ${code}`,
-          `Had Streaming Output: ${hadStreamingOutput}`,
-        ].join('\n'));
-
         // Timeout after output = idle cleanup, not failure.
         // The agent already sent its response; this is just the
         // container being reaped after the idle period expired.
@@ -788,72 +755,17 @@ export async function runContainerAgent(
         return;
       }
 
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const logFile = path.join(logsDir, `container-${timestamp}.log`);
       const isVerbose = process.env.LOG_LEVEL === 'debug' || process.env.LOG_LEVEL === 'trace';
-
-      const logLines = [
-        `=== Container Run Log ===`,
-        `Timestamp: ${new Date().toISOString()}`,
-        `Group: ${group.name}`,
-        `IsMain: ${input.isMain}`,
-        `Duration: ${duration}ms`,
-        `Exit Code: ${code}`,
-        `Stdout Truncated: ${stdoutTruncated}`,
-        `Stderr Truncated: ${stderrTruncated}`,
-        ``,
-      ];
-
       const isError = code !== 0;
 
-      if (isVerbose || isError) {
-        logLines.push(
-          `=== Input ===`,
-          JSON.stringify(input, null, 2),
-          ``,
-          `=== Container Args ===`,
-          containerArgs.join(' '),
-          ``,
-          `=== Mounts ===`,
-          mounts
-            .map(
-              (m) =>
-                `${m.hostPath} -> ${m.containerPath}${m.readonly ? ' (ro)' : ''}`,
-            )
-            .join('\n'),
-          ``,
-          `=== Stderr${stderrTruncated ? ' (TRUNCATED)' : ''} ===`,
-          stderr,
-          ``,
-          `=== Stdout${stdoutTruncated ? ' (TRUNCATED)' : ''} ===`,
-          stdout,
-        );
-      } else {
-        logLines.push(
-          `=== Input Summary ===`,
-          `Prompt length: ${input.prompt.length} chars`,
-          `Session ID: ${input.sessionId || 'new'}`,
-          ``,
-          `=== Mounts ===`,
-          mounts
-            .map((m) => `${m.containerPath}${m.readonly ? ' (ro)' : ''}`)
-            .join('\n'),
-          ``,
-        );
-      }
-
-      fs.writeFileSync(logFile, logLines.join('\n'));
-      logger.debug({ logFile, verbose: isVerbose }, 'Container log written');
-
-      if (code !== 0) {
+      if (isError) {
         logger.error(
           {
             group: group.name,
-            code,
+            containerName,
             duration,
-            stderr,
-            stdout,
-            logFile,
+            code,
+            stderr: stderrTruncated ? stderr.slice(-500) : stderr,
           },
           'Container exited with error',
         );
@@ -864,6 +776,22 @@ export async function runContainerAgent(
           error: `Container exited with code ${code}: ${stderr.slice(-200)}`,
         });
         return;
+      }
+
+      if (isVerbose) {
+        logger.debug(
+          {
+            group: group.name,
+            containerName,
+            duration,
+            code,
+            stdoutTruncated,
+            stderrTruncated,
+            stderr: stderrTruncated ? stderr.slice(-500) : stderr,
+            stdout: stdoutTruncated ? stdout.slice(-500) : stdout,
+          },
+          'Container completed',
+        );
       }
 
       // Streaming mode: wait for output chain to settle, return completion marker

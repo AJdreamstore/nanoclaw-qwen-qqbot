@@ -100,7 +100,7 @@ export async function run(args: string[]): Promise<void> {
   logger.info('Wrote registration to SQLite');
 
   // Create group folders
-  fs.mkdirSync(path.join(projectRoot, 'groups', parsed.folder, 'logs'), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'groups', parsed.folder), { recursive: true });
 
   // Update assistant name in CLAUDE.md files if different from default
   let nameUpdated = false;
@@ -122,23 +122,8 @@ export async function run(args: string[]): Promise<void> {
       }
     }
 
-    // Update .env
-    const envFile = path.join(projectRoot, '.env');
-    if (fs.existsSync(envFile)) {
-      let envContent = fs.readFileSync(envFile, 'utf-8');
-      if (envContent.includes('ASSISTANT_NAME=')) {
-        envContent = envContent.replace(
-          /^ASSISTANT_NAME=.*$/m,
-          `ASSISTANT_NAME="${parsed.assistantName}"`,
-        );
-      } else {
-        envContent += `\nASSISTANT_NAME="${parsed.assistantName}"`;
-      }
-      fs.writeFileSync(envFile, envContent);
-    } else {
-      fs.writeFileSync(envFile, `ASSISTANT_NAME="${parsed.assistantName}"\n`);
-    }
-    logger.info('Set ASSISTANT_NAME in .env');
+    // Note: ASSISTANT_NAME is now set in groups-interactive.ts and stored in global/SYSTEM.md
+    // No longer updating .env for ASSISTANT_NAME
     nameUpdated = true;
   }
 

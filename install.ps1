@@ -68,7 +68,7 @@ if (-not (Test-Path ".env") -and (Test-Path ".env.example")) {
     Write-Host ""
 }
 
-# Build project (compile TypeScript)
+# Build project
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════╗"
 Write-Host "║           构建项目                                            ║"
@@ -98,7 +98,6 @@ Write-Host "║           检查 Qwen Code                                      
 Write-Host "╚══════════════════════════════════════════════════════════════╝"
 Write-Host ""
 
-# Check if Qwen Code is installed
 $qwenInstalled = Get-Command qwen -ErrorAction SilentlyContinue
 if ($qwenInstalled) {
     $qwenVersion = qwen --version 2>&1 | Select-Object -First 1
@@ -125,14 +124,13 @@ if ($qwenInstalled) {
 }
 Write-Host ""
 
-# Check and configure Qwen Code skills (agent-browser)
+# Configure Qwen Code skills
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════╗"
 Write-Host "║           配置 Qwen Code 技能                                   ║"
 Write-Host "╚══════════════════════════════════════════════════════════════╝"
 Write-Host ""
 
-# Check if agent-browser is installed
 $agentBrowserInstalled = Get-Command agent-browser -ErrorAction SilentlyContinue
 if ($agentBrowserInstalled) {
     Write-Host "✓ agent-browser 已安装"
@@ -142,14 +140,11 @@ if ($agentBrowserInstalled) {
     Write-Host "正在安装 agent-browser..."
     npm install -g agent-browser
     
-    $agentBrowserInstalled = Get-Command agent-browser -ErrorAction SilentlyContinue
-    if ($agentBrowserInstalled) {
+    if (Get-Command agent-browser -ErrorAction SilentlyContinue) {
         Write-Host "✓ agent-browser 安装成功"
-        
         Write-Host ""
         Write-Host "正在运行 agent-browser install..."
         agent-browser install
-        
         Write-Host "✓ agent-browser 已配置"
     } else {
         Write-Host "✗ 安装 agent-browser 失败"
@@ -157,7 +152,6 @@ if ($agentBrowserInstalled) {
     }
 }
 
-# Configure Qwen Code skills
 $qwenConfigDir = Join-Path $env:USERPROFILE ".qwen"
 $agentBrowserSkillDir = Join-Path $qwenConfigDir "skills\agent-browser"
 $qwenSettingsPath = Join-Path $qwenConfigDir "settings.json"
@@ -169,24 +163,19 @@ if ((Test-Path $agentBrowserSkillDir) -and (Test-Path (Join-Path $agentBrowserSk
     Write-Host ""
     Write-Host "正在为 Qwen Code 配置 agent-browser 技能..."
     
-    # Create skills directory
     if (-not (Test-Path $agentBrowserSkillDir)) {
         New-Item -ItemType Directory -Path $agentBrowserSkillDir -Force | Out-Null
     }
     
-    # Get agent-browser global path
     $npmRoot = npm root -g
     $agentBrowserPath = Join-Path $npmRoot "agent-browser"
     
     if (Test-Path (Join-Path $agentBrowserPath "SKILL.md")) {
-        # Copy SKILL.md to Qwen config directory
         Copy-Item (Join-Path $agentBrowserPath "SKILL.md") $agentBrowserSkillDir
         Write-Host "✓ SKILL.md 已复制"
     }
     
-    # Update Qwen Code settings.json
     if (Test-Path $qwenSettingsPath) {
-        # Read and update settings
         $settings = Get-Content $qwenSettingsPath -Raw | ConvertFrom-Json
         
         if (-not $settings.tools) { $settings.tools = [PSCustomObject]@{} }
@@ -204,7 +193,6 @@ if ((Test-Path $agentBrowserSkillDir) -and (Test-Path (Join-Path $agentBrowserSk
         $settings | ConvertTo-Json -Depth 10 | Set-Content $qwenSettingsPath -Force
         Write-Host "✓ Qwen Code 设置已更新"
     } else {
-        # Create settings.json
         $settings = @{
             tools = @{
                 experimental = @{
@@ -221,13 +209,87 @@ if ((Test-Path $agentBrowserSkillDir) -and (Test-Path (Join-Path $agentBrowserSk
 }
 Write-Host ""
 
+# Check for existing group data
+Write-Host ""
+Write-Host "╔══════════════════════════════════════════════════════════════╗"
+Write-Host "║           检查历史数据                                        ║"
+Write-Host "╚══════════════════════════════════════════════════════════════╝"
+Write-Host ""
+
+$groupsDirExists = Test-Path "groups"
+$hasOldGroups = $false
+$oldGroupFolders = @()
+
+if ($groupsDirExists) {
+    $qqFolders = Get-ChildItem "groups" -Directory | Where-Object { $_.Name -like "qq-*" }
+    if ($qqFolders) {
+        $hasOldGroups = $true
+        $oldGroupFolders += $qqFolders | ForEach-Object { $_.Name }
+    }
+}
+
+$dbExists = Test-Path "store\messages.db"
+
+if ($hasOldGroups -or $dbExists) {
+    Write-Host "⚠  检测到历史数据："
+    Write-Host ""
+    
+    if ($hasOldGroups) {
+        Write-Host "  旧的群组目录："
+        foreach ($folder in $oldGroupFolders) {
+            Write-Host "    - groups/$folder"
+        }
+        Write-Host ""
+    }
+    
+    if ($dbExists) {
+        Write-Host "  数据库文件："
+        Write-Host "    - store/messages.db"
+        Write-Host ""
+    }
+    
+    Write-Host "这些旧数据可能导致问题（目录命名冲突、会话混乱等）。"
+    Write-Host ""
+    $cleanOld = Read-Host "是否清除这些历史数据？[Y/n]"
+    
+    if ($cleanOld -ne "N" -and $cleanOld -ne "n") {
+        Write-Host ""
+        
+        if ($hasOldGroups) {
+            Write-Host "正在删除旧的群组目录..."
+            foreach ($folder in $oldGroupFolders) {
+                $folderPath = Join-Path "groups" $folder
+                Remove-Item $folderPath -Recurse -Force
+                Write-Host "  ✓ 已删除：$folderPath"
+            }
+            Write-Host ""
+        }
+        
+        if ($dbExists) {
+            Write-Host "正在删除数据库..."
+            Remove-Item "store\messages.db" -Force
+            Write-Host "  ✓ 已删除：store/messages.db"
+            Write-Host ""
+        }
+        
+        Write-Host "✓ 历史数据已清除"
+        Write-Host ""
+    } else {
+        Write-Host ""
+        Write-Host "⚠  保留历史数据（如果遇到问题，请手动清理）"
+        Write-Host ""
+    }
+} else {
+    Write-Host "✓ 没有检测到历史数据"
+    Write-Host ""
+}
+
 # Ask about Docker Sandbox mode
 Write-Host "╔══════════════════════════════════════════════════════════════╗"
 Write-Host "║           Docker Sandbox 配置                                   ║"
 Write-Host "╚══════════════════════════════════════════════════════════════╝"
 Write-Host ""
 
-# Check if .env file exists
 if (Test-Path ".env") {
     Write-Host "⚠  检测到已存在的配置文件 .env"
     Write-Host ""
@@ -290,7 +352,6 @@ Write-Host ""
 if ($useDocker -eq "Y" -or $useDocker -eq "y") {
     Write-Host "正在配置 Docker Sandbox 模式..."
     
-    # Check if Docker is installed
     $dockerInstalled = Get-Command docker -ErrorAction SilentlyContinue
     if (-not $dockerInstalled) {
         Write-Host "✗ Docker 未安装"
@@ -305,7 +366,6 @@ if ($useDocker -eq "Y" -or $useDocker -eq "y") {
         exit 1
     }
     
-    # Check if Docker is running
     try {
         docker ps | Out-Null
         Write-Host "✓ Docker 已安装并运行"
@@ -315,9 +375,7 @@ if ($useDocker -eq "Y" -or $useDocker -eq "y") {
         exit 1
     }
     
-    # Update .env file - clean up duplicates and set Docker mode
     if (Test-Path ".env") {
-        # Read and clean .env file
         $lines = Get-Content ".env"
         $filteredLines = $lines | Where-Object { 
             $_ -notmatch '^NATIVE_MODE=' -and 
@@ -328,23 +386,19 @@ if ($useDocker -eq "Y" -or $useDocker -eq "y") {
             $_ -notmatch '^#.*QWEN_SANDBOX_WORKSPACE='
         }
         
-        # Add Docker configuration
         $filteredLines += "NATIVE_MODE=false"
         $filteredLines += "QWEN_SANDBOX_TYPE=docker"
         $filteredLines += "QWEN_SANDBOX_WORKSPACE=/workspace/group"
         
-        # Write back to .env
         $filteredLines | Set-Content ".env"
         Write-Host "✓ .env 已配置为 Docker Sandbox 模式"
         Write-Host ""
         
-        # Pull Docker image immediately
         Write-Host "╔══════════════════════════════════════════════════════════════╗"
         Write-Host "║        拉取 Docker Sandbox 镜像                                   ║"
         Write-Host "╚══════════════════════════════════════════════════════════════╝"
         Write-Host ""
         
-        # Get Qwen Code version
         try {
             $QWEN_VERSION = & qwen --version 2>&1 | Select-Object -First 1
         } catch {
@@ -358,26 +412,20 @@ if ($useDocker -eq "Y" -or $useDocker -eq "y") {
         Write-Host "✓ Qwen Code 版本：$QWEN_VERSION"
         Write-Host ""
         
-        # Check if image already exists
         $existingImage = docker images --format "{{.Repository}}:{{.Tag}}" | Where-Object { $_ -like "ghcr.io/qwenlm/qwen-code*$QWEN_VERSION*" }
         
         if ($existingImage) {
             Write-Host "✓ Docker Sandbox 镜像已存在"
             Write-Host ""
             docker images | Select-String "qwenlm"
-            
-            # Record the image in .env
             Add-Content ".env" "QWEN_SANDBOX_IMAGE=ghcr.io/qwenlm/qwen-code:$QWEN_VERSION"
         } else {
-            # Try to pull the specific version first
             Write-Host "正在拉取 Docker Sandbox 镜像 ghcr.io/qwenlm/qwen-code:$QWEN_VERSION ..."
             Write-Host ""
             
-            # Try version-specific pull (suppress error output)
             $versionPull = docker pull "ghcr.io/qwenlm/qwen-code:$QWEN_VERSION" 2>&1
             
             if (-not $?) {
-                # Version-specific pull failed, try latest
                 Write-Host ""
                 Write-Host "⚠ 版本 $QWEN_VERSION 的镜像不存在，尝试拉取 latest 版本..."
                 Write-Host ""
@@ -387,8 +435,6 @@ if ($useDocker -eq "Y" -or $useDocker -eq "y") {
                     Write-Host "✓ Docker Sandbox 镜像拉取成功（latest 版本）！"
                     Write-Host ""
                     docker images | Select-String "qwenlm"
-                    
-                    # Record latest in .env
                     Add-Content ".env" "QWEN_SANDBOX_IMAGE=ghcr.io/qwenlm/qwen-code:latest"
                 } else {
                     Write-Host ""
@@ -415,40 +461,44 @@ if ($useDocker -eq "Y" -or $useDocker -eq "y") {
                     }
                 }
             } else {
-                # Version-specific pull succeeded
                 Write-Host ""
                 Write-Host "✓ Docker Sandbox 镜像拉取成功！"
                 Write-Host ""
                 docker images | Select-String "qwenlm"
-                
-                # Record the image in .env
                 Add-Content ".env" "QWEN_SANDBOX_IMAGE=ghcr.io/qwenlm/qwen-code:$QWEN_VERSION"
             }
         }
         
         Write-Host ""
     }
-    
-    Write-Host ""
-    Write-Host "注意：容器镜像已准备就绪"
-    Write-Host ""
 } else {
-    Write-Host "使用原生模式（Qwen Code 本地运行）"
+    Write-Host ""
+    Write-Host "✓ 已选择原生模式（无 Docker 隔离）"
     Write-Host ""
     
-    # Update .env file
     if (Test-Path ".env") {
-        $envContent = Get-Content ".env" -Raw
-        $envContent = $envContent -replace 'NATIVE_MODE=.*', 'NATIVE_MODE=true'
-        Set-Content ".env" $envContent
+        $lines = Get-Content ".env"
+        $filteredLines = $lines | Where-Object { 
+            $_ -notmatch '^NATIVE_MODE=' -and 
+            $_ -notmatch '^QWEN_SANDBOX_TYPE=' -and 
+            $_ -notmatch '^QWEN_SANDBOX_WORKSPACE=' -and
+            $_ -notmatch '^#.*NATIVE_MODE=' -and 
+            $_ -notmatch '^#.*QWEN_SANDBOX_TYPE=' -and 
+            $_ -notmatch '^#.*QWEN_SANDBOX_WORKSPACE='
+        }
+        
+        $filteredLines += "NATIVE_MODE=true"
+        $filteredLines += "# QWEN_SANDBOX_TYPE=none"
+        
+        $filteredLines | Set-Content ".env"
         Write-Host "✓ .env 已配置为原生模式"
+        Write-Host ""
     }
 }
-Write-Host ""
 
-# Run setup wizard
+Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════╗"
-Write-Host "║              前置条件已完成                                   ║"
+Write-Host "║        安装完成！🎉                                         ║"
 Write-Host "╚══════════════════════════════════════════════════════════════╝"
 Write-Host ""
 
@@ -470,6 +520,6 @@ if ($runSetup -eq "" -or $runSetup -eq "Y" -or $runSetup -eq "y") {
 
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════╗"
-Write-Host "║          感谢您安装使用 QwQnanoclaw！🎉                    ║"
+Write-Host "║         感谢您安装使用 QwQnanoclaw！🎉                     ║"
 Write-Host "╚══════════════════════════════════════════════════════════════╝"
 Write-Host ""

@@ -261,10 +261,25 @@ async function setupMainGroupQuick(
   
   console.log('   ✓ 数据库已连接\n');
   
+  // Ask for assistant name first
+  console.log('📋 AI 助手配置：');
+  const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
+  
+  // Update global SYSTEM.md with assistant name
+  const globalSystemMd = path.join(process.cwd(), 'groups', 'global', 'SYSTEM.md');
+  if (fs.existsSync(globalSystemMd)) {
+    let systemContent = fs.readFileSync(globalSystemMd, 'utf-8');
+    // Replace assistant name in SYSTEM.md
+    systemContent = systemContent.replace(/You are \w+/i, `You are ${assistantName}`);
+    systemContent = systemContent.replace(/your name is \w+/i, `your name is ${assistantName}`);
+    fs.writeFileSync(globalSystemMd, systemContent);
+    console.log(`   ✓ 已更新 AI 称呼为：${assistantName}\n`);
+  }
+  
   // Generate random JID and group name
   const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 位随机数
   const suggestedJid = `qq:group:${randomNum}`;
-  const suggestedName = `AI 助手主群-${randomNum}`;
+  const suggestedName = `${assistantName}主群-${randomNum}`;
   
   console.log(`   推荐配置：`);
   console.log(`   - JID: ${suggestedJid}`);
@@ -282,16 +297,16 @@ async function setupMainGroupQuick(
     console.log('   ✓ 使用推荐配置');
   } else {
     mainJid = await question('   请输入群组 JID（例如：qq:group:123456 或 qq:c2c:789012）：');
-    mainName = await question('   请输入群组名称（例如："AI 助手主群"）：');
+    mainName = await question(`   请输入群组名称（例如："${assistantName}主群"）：`);
   }
   
-  const mainTrigger = await question('   请输入触发词（默认：@Andy）：');
+  const mainTrigger = await question(`   请输入触发词（默认：@${assistantName}）：`);
   const mainRequiresTrigger = await yesNo('   消息是否需要以触发词开头？', false);
 
   const mainGroup: GroupInfo = {
     jid: mainJid,
     name: mainName,
-    trigger: mainTrigger || '@Andy',
+    trigger: mainTrigger || `@${assistantName}`,
     requiresTrigger: mainRequiresTrigger,
   };
 
@@ -321,10 +336,24 @@ async function setupSingleGroup(
   
   console.log('   ✓ 数据库已连接\n');
   
+  // Ask for assistant name first
+  console.log('📋 AI 助手配置：');
+  const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
+  
+  // Update global SYSTEM.md with assistant name
+  const globalSystemMd = path.join(process.cwd(), 'groups', 'global', 'SYSTEM.md');
+  if (fs.existsSync(globalSystemMd)) {
+    let systemContent = fs.readFileSync(globalSystemMd, 'utf-8');
+    systemContent = systemContent.replace(/You are \w+/i, `You are ${assistantName}`);
+    systemContent = systemContent.replace(/your name is \w+/i, `your name is ${assistantName}`);
+    fs.writeFileSync(globalSystemMd, systemContent);
+    console.log(`   ✓ 已更新 AI 称呼为：${assistantName}\n`);
+  }
+  
   // Generate random JID and group name
   const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 位随机数
   const suggestedJid = `qq:group:${randomNum}`;
-  const suggestedName = `AI 助手群组-${randomNum}`;
+  const suggestedName = `${assistantName}群组-${randomNum}`;
   
   console.log(`   推荐配置：`);
   console.log(`   - JID: ${suggestedJid}`);
@@ -342,10 +371,10 @@ async function setupSingleGroup(
     console.log('   ✓ 使用推荐配置');
   } else {
     groupJid = await question('   请输入群组 JID（例如：qq:group:123456 或 qq:c2c:789012）：');
-    groupName = await question('   请输入群组名称（例如："AI 助手测试群"）：');
+    groupName = await question(`   请输入群组名称（例如："${assistantName}测试群"）：`);
   }
   
-  const groupTrigger = await question('   请输入触发词（默认：@Andy）：');
+  const groupTrigger = await question(`   请输入触发词（默认：@${assistantName}）：`);
   const groupRequiresTrigger = await yesNo('   消息是否需要以触发词开头？', false);
 
   // Generate folder name
@@ -356,7 +385,7 @@ async function setupSingleGroup(
   const group: GroupInfo = {
     jid: groupJid,
     name: groupName,
-    trigger: groupTrigger || '@Andy',
+    trigger: groupTrigger || `@${assistantName}`,
     requiresTrigger: groupRequiresTrigger,
   };
 
@@ -386,20 +415,34 @@ async function setupFullWizard(
   
   console.log('   ✓ 数据库已连接\n');
   
+  // Ask for assistant name first
+  console.log('📋 AI 助手配置：');
+  const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
+  
+  // Update global SYSTEM.md with assistant name
+  const globalSystemMd = path.join(process.cwd(), 'groups', 'global', 'SYSTEM.md');
+  if (fs.existsSync(globalSystemMd)) {
+    let systemContent = fs.readFileSync(globalSystemMd, 'utf-8');
+    systemContent = systemContent.replace(/You are \w+/i, `You are ${assistantName}`);
+    systemContent = systemContent.replace(/your name is \w+/i, `your name is ${assistantName}`);
+    fs.writeFileSync(globalSystemMd, systemContent);
+    console.log(`   ✓ 已更新 AI 称呼为：${assistantName}\n`);
+  }
+  
   // Ask for main group
   console.log('📋 步骤 1/3：设置主群组...');
   const hasMainGroup = await yesNo('   是否设置主群组（默认群组）？', true);
   
   if (hasMainGroup) {
     const mainJid = await question('   请输入群组 JID（例如：qq:group:123456 或 qq:c2c:789012）：');
-    const mainName = await question('   请输入群组名称（例如："AI 助手主群"）：');
-    const mainTrigger = await question('   请输入触发词（默认：@Andy）：');
+    const mainName = await question(`   请输入群组名称（例如："${assistantName}主群"）：`);
+    const mainTrigger = await question(`   请输入触发词（默认：@${assistantName}）：`);
     const mainRequiresTrigger = await yesNo('   消息是否需要以触发词开头？', false);
 
     const mainGroup: GroupInfo = {
       jid: mainJid,
       name: mainName,
-      trigger: mainTrigger || '@Andy',
+      trigger: mainTrigger || `@${assistantName}`,
       requiresTrigger: mainRequiresTrigger,
     };
 
@@ -421,14 +464,14 @@ async function setupFullWizard(
       console.log(`\n   --- 群组 #${groupCount} ---`);
       const jid = await question('   请输入群组 JID：');
       const name = await question('   请输入群组名称：');
-      const trigger = await question('   请输入触发词（默认：@Andy）：');
+      const trigger = await question(`   请输入触发词（默认：@${assistantName}）：`);
       const requiresTrigger = await yesNo('   消息是否需要以触发词开头？', false);
 
       const folderName = `group-${groupCount}-${Date.now()}`;
       const group: GroupInfo = {
         jid,
         name,
-        trigger: trigger || '@Andy',
+        trigger: trigger || `@${assistantName}`,
         requiresTrigger,
       };
 
