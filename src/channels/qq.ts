@@ -304,16 +304,17 @@ export class QQChannel implements Channel {
       return;
     }
 
-    // Dynamically register QQ C2C chats (they don't need pre-registration)
+    // Dynamically register QQ private chats (they don't need pre-registration)
+    // Private chats are treated as individual groups (qq-group-xxx)
     if (type === 'C2C_MESSAGE_CREATE' && registerGroupCallback) {
       const currentGroups = this.opts.registeredGroups();
       if (!currentGroups[chatJid]) {
         registerGroupCallback(chatJid, {
           name: `QQ User ${senderId.substring(0, 8)}`,
-          folder: `qq-c2c-${senderId}`,
+          folder: `qq-group-${senderId}`,  // Use qq-group- prefix for all QQ chats (group or private)
           trigger: `@${ASSISTANT_NAME}`,
           added_at: new Date().toISOString(),
-          requiresTrigger: false, // QQ C2C chats don't need trigger
+          requiresTrigger: false, // QQ private chats don't need trigger
         });
       }
     }

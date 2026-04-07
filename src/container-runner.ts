@@ -65,11 +65,7 @@ function buildVolumeMounts(
   const groupDir = resolveGroupFolderPath(group.folder);
 
   if (isMain) {
-    // Main gets the project root read-only. Writable paths the agent needs
-    // (group folder, IPC, .qwen-code/) are mounted separately below.
-    // Read-only prevents the agent from modifying host application code
-    // (src/, dist/, package.json, etc.) which would bypass the sandbox
-    // entirely on next restart.
+    // Main gets the project root read-only
     mounts.push({
       hostPath: projectRoot,
       containerPath: '/workspace/project',
@@ -91,7 +87,6 @@ function buildVolumeMounts(
     });
 
     // Global memory directory (read-only for non-main)
-    // Only directory mounts are supported, not file mounts
     const globalDir = path.join(GROUPS_DIR, 'global');
     if (fs.existsSync(globalDir)) {
       mounts.push({
@@ -100,50 +95,6 @@ function buildVolumeMounts(
         readonly: true,
       });
     }
-  }
-
-  // Create settings.json in group folder to configure Qwen Code
-  // Qwen Code reads settings from <cwd>/.qwen/settings.json
-  const groupQwenDir = path.join(groupDir, '.qwen');
-  fs.mkdirSync(groupQwenDir, { recursive: true });
-  const settingsFile = path.join(groupQwenDir, 'settings.json');
-  
-  // Copy global QWEN.md to group directory only if it doesn't exist
-  // This preserves user-customized names (e.g., "小猫", "小狗") in existing sessions
-  const groupQwenMdPath = path.join(groupDir, 'QWEN.md');
-  if (!isMain && !fs.existsSync(groupQwenMdPath)) {
-    const globalQwenMdPath = path.join(GROUPS_DIR, 'global', 'QWEN.md');
-    if (fs.existsSync(globalQwenMdPath)) {
-      const globalQwenMd = fs.readFileSync(globalQwenMdPath, 'utf-8');
-      fs.writeFileSync(groupQwenMdPath, globalQwenMd);
-      logger.info({ group: group.folder, target: groupQwenMdPath, firstLine: globalQwenMd.split('\n')[0] }, 'Copied global QWEN.md to group directory (first time)');
-    }
-  }
-  
-  // Create SYSTEM.md to override default system prompt (replaces "You are Qwen Code" with custom identity)
-  // Qwen Code reads QWEN_SYSTEM_MD environment variable to replace the base system prompt
-  const groupSystemMdPath = path.join(groupDir, 'SYSTEM.md');
-  if (!isMain && !fs.existsSync(groupSystemMdPath)) {
-    const globalSystemMdPath = path.join(GROUPS_DIR, 'global', 'SYSTEM.md');
-    if (fs.existsSync(globalSystemMdPath)) {
-      const globalSystemMd = fs.readFileSync(globalSystemMdPath, 'utf-8');
-      fs.writeFileSync(groupSystemMdPath, globalSystemMd);
-      logger.info({ group: group.folder, target: groupSystemMdPath }, 'Copied global SYSTEM.md to group directory (first time)');
-    }
-  }
-  
-  if (!fs.existsSync(settingsFile)) {
-    fs.writeFileSync(settingsFile, JSON.stringify({
-      env: {
-        // Enable agent swarms (subagent orchestration)
-        // https://code.qwen-code.com/docs/en/agent-teams#orchestrate-teams-of-qwen-code-sessions
-        QWEN_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
-        // Enable Qwen Code's memory feature (persists user preferences between sessions)
-        // https://code.qwen-code.com/docs/en/memory#manage-auto-memory
-        QWEN_CODE_DISABLE_AUTO_MEMORY: '0',
-      },
-      $version: 3,
-    }, null, 2) + '\n');
   }
 
   // Per-group Qwen Code sessions directory (isolated from other groups)
@@ -235,17 +186,27 @@ async function runNativeAgent(
     'Running agent on host (Qwen Code in Docker Sandbox)'
   );
 
+  // Use group folder directly as working directory
+  // Qwen Code --sandbox will mount this directory into container
+  // All groups use their own folder: groups/qq-group-xxx/
+  const workingDir = resolveGroupFolderPath(group.folder);
+  
+  logger.info({
+    group: group.folder,
+    workingDir,
+    isMain: input.isMain,
+  }, 'Using working directory for AI');
+
   // Create settings.json in group folder to configure Qwen Code
   // Qwen Code reads settings from <cwd>/.qwen/settings.json
-  const groupDir = resolveGroupFolderPath(group.folder);
-  const groupQwenDir = path.join(groupDir, '.qwen');
+  const groupQwenDir = path.join(workingDir, '.qwen');
   fs.mkdirSync(groupQwenDir, { recursive: true });
   const settingsFile = path.join(groupQwenDir, 'settings.json');
   
   if (!fs.existsSync(settingsFile)) {
     // Copy global QWEN.md to group directory if it doesn't exist (non-main groups only)
     // This preserves user-customized names (e.g., "小猫", "小狗") in existing sessions
-    const groupQwenMdPath = path.join(groupDir, 'QWEN.md');
+    const groupQwenMdPath = path.join(workingDir, 'QWEN.md');
     if (!input.isMain && !fs.existsSync(groupQwenMdPath)) {
       const globalQwenMdPath = path.join(GROUPS_DIR, 'global', 'QWEN.md');
       if (fs.existsSync(globalQwenMdPath)) {
@@ -257,7 +218,7 @@ async function runNativeAgent(
     
     // Copy global SYSTEM.md to group directory if it doesn't exist (non-main groups only)
     // This overrides the default "You are Qwen Code" system prompt
-    const groupSystemMdPath = path.join(groupDir, 'SYSTEM.md');
+    const groupSystemMdPath = path.join(workingDir, 'SYSTEM.md');
     if (!input.isMain && !fs.existsSync(groupSystemMdPath)) {
       const globalSystemMdPath = path.join(GROUPS_DIR, 'global', 'SYSTEM.md');
       if (fs.existsSync(globalSystemMdPath)) {
@@ -272,17 +233,11 @@ async function runNativeAgent(
         // Enable agent swarms (subagent orchestration)
         QWEN_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
         // Enable Qwen Code's memory feature (persists user preferences between sessions)
-        // https://code.qwen-code.com/docs/en/memory#manage-auto-memory
         QWEN_CODE_DISABLE_AUTO_MEMORY: '0',
       },
       $version: 3,
     }, null, 2) + '\n');
   }
-
-  // Use group folder as working directory
-  // This is the AI's sandbox - users can place project files here (QWEN.md, code, etc.)
-  // Matches QwQnanoclaw original design where groups/<folder>/ is the working directory
-  const workingDir = resolveGroupFolderPath(group.folder);
 
   // Build qwen code command
   const qwenArgs: string[] = [];
@@ -361,8 +316,14 @@ async function runNativeAgent(
   }
 
   logger.debug(
-    { group: group.name, args: qwenArgs.join(' '), hasOnOutput: !!onOutput, promptSample: input.prompt.substring(0, 500), isResumedSession },
-    'Spawning Qwen Code in native mode'
+    { 
+      group: group.name, 
+      args: qwenArgs.join(' '), 
+      hasOnOutput: !!onOutput, 
+      promptSample: input.prompt.substring(0, 500), 
+      isResumedSession,
+    },
+    'Spawning Qwen Code'
   );
 
   return new Promise((resolve) => {
