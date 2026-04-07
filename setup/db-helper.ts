@@ -145,6 +145,9 @@ export class Database {
     }
 
     logger.info({ path: this.dbPath, engine: this.engine }, 'Loaded database');
+    
+    // Create schema if it doesn't exist
+    createSchema(this.db);
   }
 
   prepare(sql: string) {
