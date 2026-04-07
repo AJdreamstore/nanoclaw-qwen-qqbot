@@ -10,7 +10,7 @@ import { NewMessage, RegisteredGroup, ScheduledTask, TaskRunLog } from './types.
 let db: Database | null = null;
 let dbPath: string | null = null;
 
-function createSchema(database: Database): void {
+export function createSchema(database: any): void {
   database.run(`
     CREATE TABLE IF NOT EXISTS chats (
       jid TEXT PRIMARY KEY,

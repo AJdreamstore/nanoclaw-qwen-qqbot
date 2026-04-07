@@ -1,11 +1,12 @@
 /**
  * Database abstraction that automatically uses the available database engine.
- * Respects DB_ENGINE environment variable if set, otherwise auto-detects.
+ * Respects DB_ENGINE environment variable if set, otherwise auto-detect.
  */
 import fs from 'fs';
 import path from 'path';
 import initSqlJs from 'sql.js';
 import { logger } from '../src/logger.js';
+import { createSchema } from '../src/db.js';
 
 let useBetterSqlite3: boolean | null = null;
 let BetterSqlite3Class: any = null;
