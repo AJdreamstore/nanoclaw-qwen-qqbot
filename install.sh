@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # QwQnanoclaw Installer for Unix/Linux/macOS
 # This script installs Node.js (if needed) and runs the QwQnanoclaw setup
@@ -264,7 +264,7 @@ echo ""
 # Check for existing group data
 GROUPS_DIR_EXISTS=false
 HAS_OLD_GROUPS=false
-OLD_GROUP_FOLDERS=()
+OLD_GROUP_FOLDERS=""
 
 if [ -d "groups" ]; then
     GROUPS_DIR_EXISTS=true
@@ -272,7 +272,11 @@ if [ -d "groups" ]; then
     for dir in groups/qq-*/; do
         if [ -d "$dir" ]; then
             HAS_OLD_GROUPS=true
-            OLD_GROUP_FOLDERS+=("$(basename "$dir")")
+            if [ -z "$OLD_GROUP_FOLDERS" ]; then
+                OLD_GROUP_FOLDERS="$(basename "$dir")"
+            else
+                OLD_GROUP_FOLDERS="$OLD_GROUP_FOLDERS $(basename "$dir")"
+            fi
         fi
     done
 fi
@@ -289,7 +293,7 @@ if [ "$HAS_OLD_GROUPS" = true ] || [ "$DB_EXISTS" = true ]; then
     
     if [ "$HAS_OLD_GROUPS" = true ]; then
         echo "  旧的群组目录："
-        for folder in "${OLD_GROUP_FOLDERS[@]}"; do
+        for folder in $OLD_GROUP_FOLDERS; do
             echo "    - groups/$folder"
         done
         echo ""
@@ -303,15 +307,16 @@ if [ "$HAS_OLD_GROUPS" = true ] || [ "$DB_EXISTS" = true ]; then
     
     echo "这些旧数据可能导致问题（目录命名冲突、会话混乱等）。"
     echo ""
-    read -p "是否清除这些历史数据？[Y/n]: " CLEAN_OLD
+    printf "是否清除这些历史数据？[Y/n]: "
+    read CLEAN_OLD
     
-    if [[ "$CLEAN_OLD" != [Nn]* ]]; then
+    if [ "$CLEAN_OLD" != "N" ] && [ "$CLEAN_OLD" != "n" ]; then
         echo ""
         
         # Delete old group folders
         if [ "$HAS_OLD_GROUPS" = true ]; then
             echo "正在删除旧的群组目录..."
-            for folder in "${OLD_GROUP_FOLDERS[@]}"; do
+            for folder in $OLD_GROUP_FOLDERS; do
                 rm -rf "groups/$folder"
                 echo "  ✓ 已删除：groups/$folder"
             done
