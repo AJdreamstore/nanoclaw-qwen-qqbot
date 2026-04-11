@@ -17,37 +17,6 @@ interface GroupInfo {
   requiresTrigger: boolean;
 }
 
-/**
- * Ensure global directory and default files exist
- */
-async function ensureGlobalFiles(): Promise<void> {
-  const globalDir = path.join(process.cwd(), 'groups', 'global');
-  if (!fs.existsSync(globalDir)) {
-    fs.mkdirSync(globalDir, { recursive: true });
-  }
-  
-  // Create default SYSTEM.md if it doesn't exist
-  const globalSystemMd = path.join(globalDir, 'SYSTEM.md');
-  if (!fs.existsSync(globalSystemMd)) {
-    const defaultSystemMd = `You are Qwen Code, a helpful AI assistant.
-Your name is Qwen.
-`;
-    fs.writeFileSync(globalSystemMd, defaultSystemMd);
-    logger.info('Created default SYSTEM.md');
-  }
-  
-  // Create default QWEN.md if it doesn't exist
-  const globalQwenMd = path.join(globalDir, 'QWEN.md');
-  if (!fs.existsSync(globalQwenMd)) {
-    const defaultQwenMd = `# Qwen Code Configuration
-
-This file contains the configuration for Qwen Code AI assistant.
-`;
-    fs.writeFileSync(globalQwenMd, defaultQwenMd);
-    logger.info('Created default QWEN.md');
-  }
-}
-
 export async function run(_args: string[]): Promise<void> {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -109,11 +78,8 @@ export async function run(_args: string[]): Promise<void> {
   await db.initialize();
   
   console.log('   ✓ 数据库已连接\n');
-  
-  // Ensure global files exist
-  await ensureGlobalFiles();
     
-    // Check if there are existing groups
+  // Check if there are existing groups
     const existingGroups = db.exec('SELECT folder, jid, name FROM registered_groups');
     const hasExistingGroups = existingGroups.length > 0 && existingGroups[0].values.length > 0;
     
@@ -253,6 +219,7 @@ async function registerGroup(
   db: Database,
   group: GroupInfo,
   folder: string,
+  assistantName?: string,
 ): Promise<void> {
   // Create group folder
   const groupsDir = path.join(process.cwd(), 'groups', folder);
@@ -268,7 +235,14 @@ async function registerGroup(
   }
   
   if (fs.existsSync(globalSystemMd)) {
-    const systemMdContent = fs.readFileSync(globalSystemMd, 'utf-8');
+    let systemMdContent = fs.readFileSync(globalSystemMd, 'utf-8');
+    
+    // If assistant name is provided, replace it in the group's SYSTEM.md
+    if (assistantName) {
+      systemMdContent = systemMdContent.replace(/You are \w+/i, `You are ${assistantName}`);
+      systemMdContent = systemMdContent.replace(/your name is \w+/i, `your name is ${assistantName}`);
+    }
+    
     fs.writeFileSync(path.join(groupsDir, 'SYSTEM.md'), systemMdContent);
   }
 
@@ -307,23 +281,9 @@ async function setupMainGroupQuick(
   
   console.log('   ✓ 数据库已连接\n');
   
-  // Ensure global files exist
-  await ensureGlobalFiles();
-  
   // Ask for assistant name first
   console.log('📋 AI 助手配置：');
   const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
-  
-  // Update global SYSTEM.md with assistant name
-  const globalSystemMd = path.join(process.cwd(), 'groups', 'global', 'SYSTEM.md');
-  if (fs.existsSync(globalSystemMd)) {
-    let systemContent = fs.readFileSync(globalSystemMd, 'utf-8');
-    // Replace assistant name in SYSTEM.md
-    systemContent = systemContent.replace(/You are \w+/i, `You are ${assistantName}`);
-    systemContent = systemContent.replace(/your name is \w+/i, `your name is ${assistantName}`);
-    fs.writeFileSync(globalSystemMd, systemContent);
-    console.log(`   ✓ 已更新 AI 称呼为：${assistantName}\n`);
-  }
   
   // Generate random JID and group name
   const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 位随机数
@@ -359,7 +319,7 @@ async function setupMainGroupQuick(
     requiresTrigger: mainRequiresTrigger,
   };
 
-  await registerGroup(db, mainGroup, 'main');
+  await registerGroup(db, mainGroup, 'main', assistantName);
   
   console.log('\n   ✓ 主群组注册成功\n');
   printSummary(db);
@@ -395,6 +355,7 @@ async function setupSingleGroup(
   const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
   
   // Update global SYSTEM.md with assistant name
+  const globalSystemMd = path.join(process.cwd(), 'groups', 'global', 'SYSTEM.md');
   if (fs.existsSync(globalSystemMd)) {
     let systemContent = fs.readFileSync(globalSystemMd, 'utf-8');
     systemContent = systemContent.replace(/You are \w+/i, `You are ${assistantName}`);
@@ -442,7 +403,7 @@ async function setupSingleGroup(
     requiresTrigger: groupRequiresTrigger,
   };
 
-  await registerGroup(db, group, folderName);
+  await registerGroup(db, group, folderName, assistantName);
   
   console.log(`\n   ✓ 普通群组注册成功（目录：${folderName}）\n`);
   printSummary(db);
@@ -477,16 +438,6 @@ async function setupFullWizard(
   console.log('📋 AI 助手配置：');
   const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
   
-  // Update global SYSTEM.md with assistant name
-  const globalSystemMd = path.join(process.cwd(), 'groups', 'global', 'SYSTEM.md');
-  if (fs.existsSync(globalSystemMd)) {
-    let systemContent = fs.readFileSync(globalSystemMd, 'utf-8');
-    systemContent = systemContent.replace(/You are \w+/i, `You are ${assistantName}`);
-    systemContent = systemContent.replace(/your name is \w+/i, `your name is ${assistantName}`);
-    fs.writeFileSync(globalSystemMd, systemContent);
-    console.log(`   ✓ 已更新 AI 称呼为：${assistantName}\n`);
-  }
-  
   // Ask for main group
   console.log('📋 步骤 1/3：设置主群组...');
   const hasMainGroup = await yesNo('   是否设置主群组（默认群组）？', true);
@@ -504,7 +455,7 @@ async function setupFullWizard(
       requiresTrigger: mainRequiresTrigger,
     };
 
-    await registerGroup(db, mainGroup, 'main');
+    await registerGroup(db, mainGroup, 'main', assistantName);
     console.log('   ✓ 主群组已注册\n');
   } else {
     console.log('   ℹ 跳过主群组设置\n');
@@ -533,7 +484,7 @@ async function setupFullWizard(
         requiresTrigger,
       };
 
-      await registerGroup(db, group, folderName);
+      await registerGroup(db, group, folderName, assistantName);
       console.log(`   ✓ 群组 "${name}" 已注册`);
 
       continueAdding = await yesNo('\n   是否添加另一个群组？', false);
