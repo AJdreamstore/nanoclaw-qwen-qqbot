@@ -78,6 +78,107 @@ export async function run(_args: string[]): Promise<void> {
   await db.initialize();
   
   console.log('   ✓ 数据库已连接\n');
+  
+  // Ensure groups/global directory and files exist
+  const globalDir = path.join(process.cwd(), 'groups', 'global');
+  if (!fs.existsSync(globalDir)) {
+    fs.mkdirSync(globalDir, { recursive: true });
+    console.log('   ✓ 已创建全局目录：groups/global/\n');
+  }
+  
+  // Ensure QWEN.md exists
+  const globalQwenMd = path.join(globalDir, 'QWEN.md');
+  if (!fs.existsSync(globalQwenMd)) {
+    const defaultQwenMd = `# QwQnanoclaw - Project Context
+
+## Overview
+QQ chat bot powered by Qwen Code.
+
+## Rules
+- Messages via QQ protocol
+- Keep responses concise
+- Use \`<internal>\` for internal thoughts
+
+## Capabilities
+- Chat and answer questions
+- Web search and URL fetch
+- **Browse the web** with \`agent-browser\`
+- File read/write in workspace
+- Run sandbox commands
+- Schedule recurring tasks
+- Send messages via MCP tools
+
+## Workspace
+- \`/workspace/group/\` → \`groups/<group-folder>/\` (writable)
+- \`/workspace/global/\` → \`groups/global/\` (read-only for non-main groups)
+- \`/workspace/project/\` → Project root (read-only for main group)
+
+## Memory
+- Group-specific memory: \`groups/<group-folder>/QWEN.md\`
+- Global memory: \`groups/global/QWEN.md\` (this file)
+- Conversation history: stored in database, searchable via Qwen Code
+
+---
+*Note: You can add project-specific instructions below this line.*
+`;
+    fs.writeFileSync(globalQwenMd, defaultQwenMd);
+    console.log('   ✓ 已创建默认 QWEN.md\n');
+  }
+  
+  // Ensure SYSTEM.md exists
+  const globalSystemMd = path.join(globalDir, 'SYSTEM.md');
+  if (!fs.existsSync(globalSystemMd)) {
+    const defaultSystemMd = `You are Qwen Code, a helpful AI assistant integrated with QQ chat.
+
+## Core Rules
+- Follow project conventions; verify before assuming
+- Keep code idiomatic and well-structured
+- Be proactive but confirm ambiguous requests
+- Use absolute paths for file operations
+- Stay in workspace unless granted permission
+
+## Communication
+- Be concise (mobile-friendly)
+- Use \`<internal>\` tags for internal thoughts (not shown to user)
+- No summaries unless asked
+
+### Send Message Tool
+You have \`mcp__nanoclaw__send_message\` to send messages immediately while working.
+
+### Internal Thoughts
+Use \`<internal>\` tags for reasoning:
+\`\`\`
+<internal>Analyzing the code structure...</internal>
+
+Here's what I found...
+\`\`\`
+
+## Capabilities
+- Answer questions and have conversations
+- Search web and fetch content from URLs
+- **Browse the web** with \`agent-browser\` tool
+- Read/write files in workspace
+- Run commands in sandbox environment
+- Schedule tasks to run later/recursively
+- Send messages via MCP tools
+
+## Workspace
+Your workspace is \`groups/<group-folder>/\` - this is your sandbox.
+
+### Directory Mounts
+- \`/workspace/group/\` → Your group folder (writable)
+- \`/workspace/global/\` → Global memory (read-only for non-main)
+- \`/workspace/project/\` → Project root (read-only, main group only)
+
+## Memory System
+- Use \`conversations/\` folder for conversation history
+- Create structured files for important data (e.g., \`customers.md\`, \`preferences.md\`)
+- Split files larger than 500 lines into folders
+- Maintain index files for organized memory
+`;
+    fs.writeFileSync(globalSystemMd, defaultSystemMd);
+    console.log('   ✓ 已创建默认 SYSTEM.md\n');
+  }
     
   // Check if there are existing groups
     const existingGroups = db.exec('SELECT folder, jid, name FROM registered_groups');
@@ -281,6 +382,60 @@ async function setupMainGroupQuick(
   
   console.log('   ✓ 数据库已连接\n');
   
+  // Ensure groups/global directory and files exist
+  const globalDir = path.join(process.cwd(), 'groups', 'global');
+  if (!fs.existsSync(globalDir)) {
+    fs.mkdirSync(globalDir, { recursive: true });
+  }
+  
+  const globalQwenMd = path.join(globalDir, 'QWEN.md');
+  if (!fs.existsSync(globalQwenMd)) {
+    const defaultQwenMd = `# QwQnanoclaw - Project Context
+
+## Overview
+QQ chat bot powered by Qwen Code.
+
+## Capabilities
+- Chat and answer questions
+- Web search and URL fetch
+- Browse the web with agent-browser
+- File read/write in workspace
+- Run sandbox commands
+- Schedule recurring tasks
+
+## Memory
+- Group-specific memory: groups/<group-folder>/QWEN.md
+- Global memory: groups/global/QWEN.md (this file)
+`;
+    fs.writeFileSync(globalQwenMd, defaultQwenMd);
+  }
+  
+  const globalSystemMd = path.join(globalDir, 'SYSTEM.md');
+  if (!fs.existsSync(globalSystemMd)) {
+    const defaultSystemMd = `You are Qwen Code, a helpful AI assistant integrated with QQ chat.
+
+## Core Rules
+- Follow project conventions
+- Keep code idiomatic and well-structured
+- Be proactive but confirm ambiguous requests
+- Use absolute paths for file operations
+
+## Communication
+- Be concise (mobile-friendly)
+- Use <internal> tags for internal thoughts
+- No summaries unless asked
+
+## Capabilities
+- Answer questions and have conversations
+- Search web and fetch content from URLs
+- Browse the web with agent-browser tool
+- Read/write files in workspace
+- Run commands in sandbox environment
+- Schedule tasks to run later/recursively
+`;
+    fs.writeFileSync(globalSystemMd, defaultSystemMd);
+  }
+  
   // Ask for assistant name first
   console.log('📋 AI 助手配置：');
   const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
@@ -350,19 +505,63 @@ async function setupSingleGroup(
   
   console.log('   ✓ 数据库已连接\n');
   
+  // Ensure groups/global directory and files exist
+  const globalDir = path.join(process.cwd(), 'groups', 'global');
+  if (!fs.existsSync(globalDir)) {
+    fs.mkdirSync(globalDir, { recursive: true });
+  }
+  
+  const globalQwenMd = path.join(globalDir, 'QWEN.md');
+  if (!fs.existsSync(globalQwenMd)) {
+    const defaultQwenMd = `# QwQnanoclaw - Project Context
+
+## Overview
+QQ chat bot powered by Qwen Code.
+
+## Capabilities
+- Chat and answer questions
+- Web search and URL fetch
+- Browse the web with agent-browser
+- File read/write in workspace
+- Run sandbox commands
+- Schedule recurring tasks
+
+## Memory
+- Group-specific memory: groups/<group-folder>/QWEN.md
+- Global memory: groups/global/QWEN.md (this file)
+`;
+    fs.writeFileSync(globalQwenMd, defaultQwenMd);
+  }
+  
+  const globalSystemMd = path.join(globalDir, 'SYSTEM.md');
+  if (!fs.existsSync(globalSystemMd)) {
+    const defaultSystemMd = `You are Qwen Code, a helpful AI assistant integrated with QQ chat.
+
+## Core Rules
+- Follow project conventions
+- Keep code idiomatic and well-structured
+- Be proactive but confirm ambiguous requests
+- Use absolute paths for file operations
+
+## Communication
+- Be concise (mobile-friendly)
+- Use <internal> tags for internal thoughts
+- No summaries unless asked
+
+## Capabilities
+- Answer questions and have conversations
+- Search web and fetch content from URLs
+- Browse the web with agent-browser tool
+- Read/write files in workspace
+- Run commands in sandbox environment
+- Schedule tasks to run later/recursively
+`;
+    fs.writeFileSync(globalSystemMd, defaultSystemMd);
+  }
+  
   // Ask for assistant name first
   console.log('📋 AI 助手配置：');
   const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
-  
-  // Update global SYSTEM.md with assistant name
-  const globalSystemMd = path.join(process.cwd(), 'groups', 'global', 'SYSTEM.md');
-  if (fs.existsSync(globalSystemMd)) {
-    let systemContent = fs.readFileSync(globalSystemMd, 'utf-8');
-    systemContent = systemContent.replace(/You are \w+/i, `You are ${assistantName}`);
-    systemContent = systemContent.replace(/your name is \w+/i, `your name is ${assistantName}`);
-    fs.writeFileSync(globalSystemMd, systemContent);
-    console.log(`   ✓ 已更新 AI 称呼为：${assistantName}\n`);
-  }
   
   // Generate random JID and group name
   const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 位随机数

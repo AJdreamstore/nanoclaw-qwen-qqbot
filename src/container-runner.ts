@@ -191,33 +191,31 @@ async function runNativeAgent(
   // All groups use their own folder: groups/qq-group-xxx/
   const workingDir = resolveGroupFolderPath(group.folder);
   
-  logger.info({
+  logger.info({ 
     group: group.folder,
     workingDir,
     isMain: input.isMain,
   }, 'Using working directory for AI');
 
-  // Copy global QWEN.md to group directory if it doesn't exist (non-main groups only)
-  // This preserves user-customized names (e.g., "小猫", "小狗") in existing sessions
+  // Ensure QWEN.md exists in group directory
   const groupQwenMdPath = path.join(workingDir, 'QWEN.md');
-  if (!input.isMain && !fs.existsSync(groupQwenMdPath)) {
+  if (!fs.existsSync(groupQwenMdPath)) {
     const globalQwenMdPath = path.join(GROUPS_DIR, 'global', 'QWEN.md');
     if (fs.existsSync(globalQwenMdPath)) {
       const globalQwenMd = fs.readFileSync(globalQwenMdPath, 'utf-8');
       fs.writeFileSync(groupQwenMdPath, globalQwenMd);
-      logger.info({ group: group.folder, target: groupQwenMdPath, firstLine: globalQwenMd.split('\n')[0] }, 'Copied global QWEN.md to group directory (first time)');
+      logger.info({ group: group.folder, target: groupQwenMdPath, firstLine: globalQwenMd.split('\n')[0] }, 'Copied global QWEN.md to group directory');
     }
   }
   
-  // Copy global SYSTEM.md to group directory if it doesn't exist (non-main groups only)
-  // This overrides the default "You are Qwen Code" system prompt
+  // Ensure SYSTEM.md exists in group directory
   const groupSystemMdPath = path.join(workingDir, 'SYSTEM.md');
-  if (!input.isMain && !fs.existsSync(groupSystemMdPath)) {
+  if (!fs.existsSync(groupSystemMdPath)) {
     const globalSystemMdPath = path.join(GROUPS_DIR, 'global', 'SYSTEM.md');
     if (fs.existsSync(globalSystemMdPath)) {
       const globalSystemMd = fs.readFileSync(globalSystemMdPath, 'utf-8');
       fs.writeFileSync(groupSystemMdPath, globalSystemMd);
-      logger.info({ group: group.folder, target: groupSystemMdPath }, 'Copied global SYSTEM.md to group directory (first time)');
+      logger.info({ group: group.folder, target: groupSystemMdPath }, 'Copied global SYSTEM.md to group directory');
     }
   }
 
