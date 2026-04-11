@@ -124,16 +124,23 @@ function registerGroup(jid: string, group: RegisteredGroup): void {
       // Extract QQ ID from folder (e.g., qq-group-39A9A36F -> 39A9A36F)
       const qqId = group.folder.replace(/^qq-group-/, '');
       const envKey = `GROUP_FOLDER_QQ_${qqId.toUpperCase()}`;
+      const envValue = `${envKey}=${group.folder}`;
       
-      // Update or add GROUP_FOLDER_QQ_XXX
-      if (envContent.includes(`${envKey}=`)) {
-        envContent = envContent.replace(new RegExp(`${envKey}=.*`), `${envKey}=${group.folder}`);
+      // Check if already exists (avoid duplicates)
+      const lines = envContent.split('\n');
+      const existingLineIndex = lines.findIndex(line => line.startsWith(`${envKey}=`));
+      
+      if (existingLineIndex !== -1) {
+        // Update existing line
+        lines[existingLineIndex] = envValue;
+        envContent = lines.join('\n');
       } else {
-        envContent += `\n${envKey}=${group.folder}`;
+        // Add new line
+        envContent += `\n${envValue}`;
       }
       
       fs.writeFileSync(envPath, envContent);
-      logger.info({ jid, folder: group.folder, envKey }, 'Added group folder to .env');
+      logger.info({ jid, folder: group.folder, envKey }, 'Added/updated group folder in .env');
     }
   }
 
