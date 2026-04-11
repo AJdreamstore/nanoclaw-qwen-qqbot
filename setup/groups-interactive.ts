@@ -248,7 +248,7 @@ Your workspace is \`groups/<group-folder>/\` - this is your sandbox.
     await new Promise(resolve => setTimeout(resolve, 100));
     
     // Ask for operation mode
-    const mode = await question('请选择配置模式：\n  1. 快速配置主群组（推荐新手）\n  2. 快速配置单个普通群组\n  3. 完整配置向导（主群组 + 多个普通群组）\n  0. 取消\n\n请输入选项 (0-3): ');
+    const mode = await question('请选择配置模式：\n  1. 创建主群组（可选）\n  2. 配置全局称呼\n  0. 取消\n\n请输入选项 (0-2): ');
     
     if (mode.trim() === '0') {
       console.log('\n已取消配置。\n');
@@ -260,14 +260,11 @@ Your workspace is \`groups/<group-folder>/\` - this is your sandbox.
     }
     
     if (mode.trim() === '1') {
-      // Quick main group setup
-      await setupMainGroupQuick(db, rl, question, yesNo);
+      // Create main group
+      await setupMainGroup(db, rl, question, yesNo);
     } else if (mode.trim() === '2') {
-      // Quick single group setup (no main group)
-      await setupSingleGroup(db, rl, question, yesNo);
-    } else if (mode.trim() === '3') {
-      // Full wizard
-      await setupFullWizard(db, rl, question, yesNo);
+      // Configure global assistant name
+      await configureGlobalAssistantName(question);
     } else {
       console.log('\n无效的选项，已取消配置。\n');
       process.exit(0);
@@ -358,208 +355,97 @@ async function registerGroup(
 }
 
 /**
- * Quick main group setup
+ * Setup main group (optional)
  */
-async function setupMainGroupQuick(
+async function setupMainGroup(
   db: Database,
   rl: readline.Interface,
   question: (query: string) => Promise<string>,
   yesNo: (query: string, defaultYes?: boolean) => Promise<boolean>,
 ): Promise<void> {
-  console.log('\n📋 快速配置主群组\n');
+  console.log('\n📋 创建主群组\n');
   
-  // Check database
-  const dbPath = path.join(STORE_DIR, 'messages.db');
-  if (!fs.existsSync(dbPath)) {
-    console.log('   ℹ 数据库不存在，正在初始化...\n');
-    if (!fs.existsSync(STORE_DIR)) {
-      fs.mkdirSync(STORE_DIR, { recursive: true });
+  const createMain = await yesNo('   是否创建主群组？（推荐）', true);
+  
+  if (createMain) {
+    // Create main directory
+    const mainDir = path.join(process.cwd(), 'groups', 'main');
+    fs.mkdirSync(mainDir, { recursive: true });
+    
+    // Copy global config files
+    const globalQwenMd = path.join(process.cwd(), 'groups', 'global', 'QWEN.md');
+    const globalSystemMd = path.join(process.cwd(), 'groups', 'global', 'SYSTEM.md');
+    
+    if (fs.existsSync(globalQwenMd)) {
+      fs.writeFileSync(path.join(mainDir, 'QWEN.md'), fs.readFileSync(globalQwenMd, 'utf-8'));
+      console.log('   ✓ 已复制 QWEN.md 到主群目录');
     }
-    const db = new Database(dbPath, { create: true });
-    await db.initialize();
-    console.log('   ✓ 数据库已初始化\n');
-  }
-  
-  console.log('   ✓ 数据库已连接\n');
-  
-  // Ensure groups/global directory and files exist
-  const globalDir = path.join(process.cwd(), 'groups', 'global');
-  if (!fs.existsSync(globalDir)) {
-    fs.mkdirSync(globalDir, { recursive: true });
-  }
-  
-  const globalQwenMd = path.join(globalDir, 'QWEN.md');
-  if (!fs.existsSync(globalQwenMd)) {
-    const defaultQwenMd = `# QwQnanoclaw - Project Context
-
-## Overview
-QQ chat bot powered by Qwen Code.
-
-## Capabilities
-- Chat and answer questions
-- Web search and URL fetch
-- Browse the web with agent-browser
-- File read/write in workspace
-- Run sandbox commands
-- Schedule recurring tasks
-
-## Memory
-- Group-specific memory: groups/<group-folder>/QWEN.md
-- Global memory: groups/global/QWEN.md (this file)
-`;
-    fs.writeFileSync(globalQwenMd, defaultQwenMd);
-  }
-  
-  const globalSystemMd = path.join(globalDir, 'SYSTEM.md');
-  if (!fs.existsSync(globalSystemMd)) {
-    const defaultSystemMd = `You are Qwen Code, a helpful AI assistant integrated with QQ chat.
-
-## Core Rules
-- Follow project conventions
-- Keep code idiomatic and well-structured
-- Be proactive but confirm ambiguous requests
-- Use absolute paths for file operations
-
-## Communication
-- Be concise (mobile-friendly)
-- Use <internal> tags for internal thoughts
-- No summaries unless asked
-
-## Capabilities
-- Answer questions and have conversations
-- Search web and fetch content from URLs
-- Browse the web with agent-browser tool
-- Read/write files in workspace
-- Run commands in sandbox environment
-- Schedule tasks to run later/recursively
-`;
-    fs.writeFileSync(globalSystemMd, defaultSystemMd);
-  }
-  
-  // Ask for assistant name first
-  console.log('📋 AI 助手配置：');
-  const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
-  
-  // Generate random JID and group name
-  const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 位随机数
-  const suggestedJid = `qq:group:${randomNum}`;
-  const suggestedName = `${assistantName}主群-${randomNum}`;
-  
-  console.log(`   推荐配置：`);
-  console.log(`   - JID: ${suggestedJid}`);
-  console.log(`   - 群组名称：${suggestedName}`);
-  console.log('');
-  
-  const useSuggested = await yesNo('   是否使用推荐配置？（推荐）', true);
-  
-  let mainJid: string;
-  let mainName: string;
-  
-  if (useSuggested) {
-    mainJid = suggestedJid;
-    mainName = suggestedName;
-    console.log('   ✓ 使用推荐配置');
+    
+    if (fs.existsSync(globalSystemMd)) {
+      fs.writeFileSync(path.join(mainDir, 'SYSTEM.md'), fs.readFileSync(globalSystemMd, 'utf-8'));
+      console.log('   ✓ 已复制 SYSTEM.md 到主群目录');
+    }
+    
+    // Write to .env
+    const envPath = path.join(process.cwd(), '.env');
+    let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf-8') : '';
+    
+    // Update or add MAIN_GROUP_FOLDER
+    if (envContent.includes('MAIN_GROUP_FOLDER=')) {
+      envContent = envContent.replace(/MAIN_GROUP_FOLDER=.*/, 'MAIN_GROUP_FOLDER=main');
+    } else {
+      envContent += '\nMAIN_GROUP_FOLDER=main';
+    }
+    
+    // Update or add MAIN_GROUP_QQ_ID (leave empty for user to fill)
+    if (envContent.includes('MAIN_GROUP_QQ_ID=')) {
+      envContent = envContent.replace(/MAIN_GROUP_QQ_ID=.*/, 'MAIN_GROUP_QQ_ID=');
+    } else {
+      envContent += '\nMAIN_GROUP_QQ_ID=';
+    }
+    
+    fs.writeFileSync(envPath, envContent);
+    
+    console.log('   ✓ 主群目录已创建：groups/main/');
+    console.log('   ℹ 请在 .env 中填写主群 QQ ID（纯 ID，不带前缀）：');
+    console.log('      MAIN_GROUP_QQ_ID=39A9A36FBD012BB43018C1CC7B0B6CC3');
   } else {
-    mainJid = await question('   请输入群组 JID（例如：qq:group:123456 或 qq:c2c:789012）：');
-    mainName = await question(`   请输入群组名称（例如："${assistantName}主群"）：`);
+    console.log('   ℹ 未创建主群组，后续可手动创建');
   }
-  
-  const mainTrigger = await question(`   请输入触发词（默认：@${assistantName}）：`);
-  const mainRequiresTrigger = await yesNo('   消息是否需要以触发词开头？', false);
-
-  const mainGroup: GroupInfo = {
-    jid: mainJid,
-    name: mainName,
-    trigger: mainTrigger || `@${assistantName}`,
-    requiresTrigger: mainRequiresTrigger,
-  };
-
-  await registerGroup(db, mainGroup, 'main', assistantName);
-  
-  console.log('\n   ✓ 主群组注册成功\n');
-  printSummary(db);
 }
 
 /**
- * Quick single group setup (no main group)
+ * Configure global assistant name
  */
-async function setupSingleGroup(
-  db: Database,
-  rl: readline.Interface,
+async function configureGlobalAssistantName(
   question: (query: string) => Promise<string>,
-  yesNo: (query: string, defaultYes?: boolean) => Promise<boolean>,
 ): Promise<void> {
-  console.log('\n📋 快速配置单个普通群组\n');
+  console.log('\n📋 配置全局称呼\n');
   
-  // Check database
-  const dbPath = path.join(STORE_DIR, 'messages.db');
-  if (!fs.existsSync(dbPath)) {
-    console.log('   ℹ 数据库不存在，正在初始化...\n');
-    if (!fs.existsSync(STORE_DIR)) {
-      fs.mkdirSync(STORE_DIR, { recursive: true });
-    }
-    const db = new Database(dbPath, { create: true });
-    await db.initialize();
-    console.log('   ✓ 数据库已初始化\n');
+  const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
+  
+  // Update groups/global/SYSTEM.md
+  const globalSystemMd = path.join(process.cwd(), 'groups', 'global', 'SYSTEM.md');
+  if (fs.existsSync(globalSystemMd)) {
+    let content = fs.readFileSync(globalSystemMd, 'utf-8');
+    content = content.replace(/You are \w+/gi, `You are ${assistantName}`);
+    content = content.replace(/your name is \w+/gi, `your name is ${assistantName}`);
+    fs.writeFileSync(globalSystemMd, content);
+    console.log('   ✓ 已更新 SYSTEM.md 中的称呼');
   }
   
-  console.log('   ✓ 数据库已连接\n');
-  
-  // Ensure groups/global directory and files exist
-  const globalDir = path.join(process.cwd(), 'groups', 'global');
-  if (!fs.existsSync(globalDir)) {
-    fs.mkdirSync(globalDir, { recursive: true });
+  // Update groups/global/QWEN.md if needed
+  const globalQwenMd = path.join(process.cwd(), 'groups', 'global', 'QWEN.md');
+  if (fs.existsSync(globalQwenMd)) {
+    let content = fs.readFileSync(globalQwenMd, 'utf-8');
+    // Update any references to assistant name in QWEN.md
+    // This is optional, depending on the content
+    console.log('   ✓ 已检查 QWEN.md');
   }
   
-  const globalQwenMd = path.join(globalDir, 'QWEN.md');
-  if (!fs.existsSync(globalQwenMd)) {
-    const defaultQwenMd = `# QwQnanoclaw - Project Context
-
-## Overview
-QQ chat bot powered by Qwen Code.
-
-## Capabilities
-- Chat and answer questions
-- Web search and URL fetch
-- Browse the web with agent-browser
-- File read/write in workspace
-- Run sandbox commands
-- Schedule recurring tasks
-
-## Memory
-- Group-specific memory: groups/<group-folder>/QWEN.md
-- Global memory: groups/global/QWEN.md (this file)
-`;
-    fs.writeFileSync(globalQwenMd, defaultQwenMd);
-  }
-  
-  const globalSystemMd = path.join(globalDir, 'SYSTEM.md');
-  if (!fs.existsSync(globalSystemMd)) {
-    const defaultSystemMd = `You are Qwen Code, a helpful AI assistant integrated with QQ chat.
-
-## Core Rules
-- Follow project conventions
-- Keep code idiomatic and well-structured
-- Be proactive but confirm ambiguous requests
-- Use absolute paths for file operations
-
-## Communication
-- Be concise (mobile-friendly)
-- Use <internal> tags for internal thoughts
-- No summaries unless asked
-
-## Capabilities
-- Answer questions and have conversations
-- Search web and fetch content from URLs
-- Browse the web with agent-browser tool
-- Read/write files in workspace
-- Run commands in sandbox environment
-- Schedule tasks to run later/recursively
-`;
-    fs.writeFileSync(globalSystemMd, defaultSystemMd);
-  }
-  
-  // Ask for assistant name first
+  console.log(`   ✓ 全局称呼已配置为：${assistantName}`);
+  console.log('   ℹ 重启后生效');
+}
   console.log('📋 AI 助手配置：');
   const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
   
@@ -605,95 +491,6 @@ QQ chat bot powered by Qwen Code.
   await registerGroup(db, group, folderName, assistantName);
   
   console.log(`\n   ✓ 普通群组注册成功（目录：${folderName}）\n`);
-  printSummary(db);
-}
-
-/**
- * Full wizard setup
- */
-async function setupFullWizard(
-  db: Database,
-  rl: readline.Interface,
-  question: (query: string) => Promise<string>,
-  yesNo: (query: string, defaultYes?: boolean) => Promise<boolean>,
-): Promise<void> {
-  console.log('\n📋 完整配置向导\n');
-  
-  // Check database
-  const dbPath = path.join(STORE_DIR, 'messages.db');
-  if (!fs.existsSync(dbPath)) {
-    console.log('   ℹ 数据库不存在，正在初始化...\n');
-    if (!fs.existsSync(STORE_DIR)) {
-      fs.mkdirSync(STORE_DIR, { recursive: true });
-    }
-    const db = new Database(dbPath, { create: true });
-    await db.initialize();
-    console.log('   ✓ 数据库已初始化\n');
-  }
-  
-  console.log('   ✓ 数据库已连接\n');
-  
-  // Ask for assistant name first
-  console.log('📋 AI 助手配置：');
-  const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
-  
-  // Ask for main group
-  console.log('📋 步骤 1/3：设置主群组...');
-  const hasMainGroup = await yesNo('   是否设置主群组（默认群组）？', true);
-  
-  if (hasMainGroup) {
-    const mainJid = await question('   请输入群组 JID（例如：qq:group:123456 或 qq:c2c:789012）：');
-    const mainName = await question(`   请输入群组名称（例如："${assistantName}主群"）：`);
-    const mainTrigger = await question(`   请输入触发词（默认：@${assistantName}）：`);
-    const mainRequiresTrigger = await yesNo('   消息是否需要以触发词开头？', false);
-
-    const mainGroup: GroupInfo = {
-      jid: mainJid,
-      name: mainName,
-      trigger: mainTrigger || `@${assistantName}`,
-      requiresTrigger: mainRequiresTrigger,
-    };
-
-    await registerGroup(db, mainGroup, 'main', assistantName);
-    console.log('   ✓ 主群组已注册\n');
-  } else {
-    console.log('   ℹ 跳过主群组设置\n');
-  }
-
-  // Ask for additional groups
-  console.log('📋 步骤 2/3：添加额外群组...');
-  const hasMoreGroups = await yesNo('   是否添加更多群组？', false);
-  
-  if (hasMoreGroups) {
-    let groupCount = 1;
-    let continueAdding = true;
-
-    while (continueAdding) {
-      console.log(`\n   --- 群组 #${groupCount} ---`);
-      const jid = await question('   请输入群组 JID：');
-      const name = await question('   请输入群组名称：');
-      const trigger = await question(`   请输入触发词（默认：@${assistantName}）：`);
-      const requiresTrigger = await yesNo('   消息是否需要以触发词开头？', false);
-
-      const folderName = `group-${groupCount}-${Date.now()}`;
-      const group: GroupInfo = {
-        jid,
-        name,
-        trigger: trigger || `@${assistantName}`,
-        requiresTrigger,
-      };
-
-      await registerGroup(db, group, folderName, assistantName);
-      console.log(`   ✓ 群组 "${name}" 已注册`);
-
-      continueAdding = await yesNo('\n   是否添加另一个群组？', false);
-      groupCount++;
-    }
-  } else {
-    console.log('   ℹ 不添加额外群组\n');
-  }
-  
-  console.log('\n📋 步骤 3/3：完成\n');
   printSummary(db);
 }
 

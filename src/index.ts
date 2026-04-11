@@ -5,6 +5,7 @@ import crypto from 'crypto';
 
 import {
   ASSISTANT_NAME,
+  GROUPS_DIR,
   IDLE_TIMEOUT,
   MAIN_GROUP_FOLDER,
   POLL_INTERVAL,
@@ -93,6 +94,47 @@ function registerGroup(jid: string, group: RegisteredGroup): void {
       'Rejecting group registration with invalid folder',
     );
     return;
+  }
+
+  // Create group directory if it doesn't exist
+  if (!fs.existsSync(groupDir)) {
+    fs.mkdirSync(groupDir, { recursive: true });
+    
+    // Copy QWEN.md and SYSTEM.md from global directory
+    const globalDir = path.join(GROUPS_DIR, 'global');
+    const globalQwenMd = path.join(globalDir, 'QWEN.md');
+    const globalSystemMd = path.join(globalDir, 'SYSTEM.md');
+    
+    if (fs.existsSync(globalQwenMd)) {
+      fs.writeFileSync(path.join(groupDir, 'QWEN.md'), fs.readFileSync(globalQwenMd, 'utf-8'));
+      logger.info({ jid, folder: group.folder }, 'Copied QWEN.md to new group directory');
+    }
+    
+    if (fs.existsSync(globalSystemMd)) {
+      fs.writeFileSync(path.join(groupDir, 'SYSTEM.md'), fs.readFileSync(globalSystemMd, 'utf-8'));
+      logger.info({ jid, folder: group.folder }, 'Copied SYSTEM.md to new group directory');
+    }
+    
+    // Write to .env for non-main groups
+    const isMainGroup = group.folder === 'main';
+    if (!isMainGroup) {
+      const envPath = path.join(process.cwd(), '.env');
+      let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf-8') : '';
+      
+      // Extract QQ ID from folder (e.g., qq-group-39A9A36F -> 39A9A36F)
+      const qqId = group.folder.replace(/^qq-group-/, '');
+      const envKey = `GROUP_FOLDER_QQ_${qqId.toUpperCase()}`;
+      
+      // Update or add GROUP_FOLDER_QQ_XXX
+      if (envContent.includes(`${envKey}=`)) {
+        envContent = envContent.replace(new RegExp(`${envKey}=.*`), `${envKey}=${group.folder}`);
+      } else {
+        envContent += `\n${envKey}=${group.folder}`;
+      }
+      
+      fs.writeFileSync(envPath, envContent);
+      logger.info({ jid, folder: group.folder, envKey }, 'Added group folder to .env');
+    }
   }
 
   registeredGroups[jid] = group;
