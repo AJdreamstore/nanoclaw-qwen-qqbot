@@ -446,53 +446,6 @@ async function configureGlobalAssistantName(
   console.log(`   ✓ 全局称呼已配置为：${assistantName}`);
   console.log('   ℹ 重启后生效');
 }
-  console.log('📋 AI 助手配置：');
-  const assistantName = await question('   请输入 AI 助手的称呼（例如：小梅、Andy）：');
-  
-  // Generate random JID and group name
-  const randomNum = Math.floor(100000 + Math.random() * 900000); // 6 位随机数
-  const suggestedJid = `qq:group:${randomNum}`;
-  const suggestedName = `${assistantName}群组-${randomNum}`;
-  
-  console.log(`   推荐配置：`);
-  console.log(`   - JID: ${suggestedJid}`);
-  console.log(`   - 群组名称：${suggestedName}`);
-  console.log('');
-  
-  const useSuggested = await yesNo('   是否使用推荐配置？（推荐）', true);
-  
-  let groupJid: string;
-  let groupName: string;
-  
-  if (useSuggested) {
-    groupJid = suggestedJid;
-    groupName = suggestedName;
-    console.log('   ✓ 使用推荐配置');
-  } else {
-    groupJid = await question('   请输入群组 JID（例如：qq:group:123456 或 qq:c2c:789012）：');
-    groupName = await question(`   请输入群组名称（例如："${assistantName}测试群"）：`);
-  }
-  
-  const groupTrigger = await question(`   请输入触发词（默认：@${assistantName}）：`);
-  const groupRequiresTrigger = await yesNo('   消息是否需要以触发词开头？', false);
-
-  // Generate folder name
-  const timestamp = Date.now();
-  const randomId = Math.random().toString(36).substring(2, 6);
-  const folderName = `qq-group-${timestamp}-${randomId}`;
-
-  const group: GroupInfo = {
-    jid: groupJid,
-    name: groupName,
-    trigger: groupTrigger || `@${assistantName}`,
-    requiresTrigger: groupRequiresTrigger,
-  };
-
-  await registerGroup(db, group, folderName, assistantName);
-  
-  console.log(`\n   ✓ 普通群组注册成功（目录：${folderName}）\n`);
-  printSummary(db);
-}
 
 /**
  * Print summary
