@@ -2,6 +2,7 @@ import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { execSync } from 'child_process';
 
 import {
   ASSISTANT_NAME,
@@ -575,6 +576,38 @@ function ensureContainerSystemRunning(): void {
 }
 
 async function main(): Promise<void> {
+  // Check for duplicate running instances (Windows only)
+  if (process.platform === 'win32') {
+    try {
+      const output = execSync(
+        'powershell -Command "Get-Process node -ErrorAction SilentlyContinue | Where-Object { (Get-CimInstance Win32_Process -Filter \\"ProcessId = $($_.Id)\\" -ErrorAction SilentlyContinue).CommandLine -like \'*dist/index.js*\' } | Select-Object -ExpandProperty Id"',
+        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+      );
+      const runningPids = output.trim().split('\n').filter(line => line.match(/^\d+$/));
+      if (runningPids.length > 0 && !runningPids.includes(process.pid.toString())) {
+        logger.warn({ pids: runningPids }, 'Duplicate nanoclaw instance detected');
+        console.log('\n⚠️  检测到其他实例正在运行 (PIDs: ' + runningPids.join(', ') + ')');
+        console.log('   正在停止旧实例...\n');
+        
+        // Stop old instances
+        runningPids.forEach(pid => {
+          try {
+            execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' });
+            logger.info({ pid }, 'Stopped duplicate instance');
+          } catch (err) {
+            logger.error({ pid, err }, 'Failed to stop duplicate instance');
+          }
+        });
+        
+        console.log('✓ 旧实例已停止，请重新启动程序\n');
+        process.exit(1);
+      }
+    } catch (err) {
+      // Ignore errors in check, continue with startup
+      logger.debug({ err }, 'Instance check skipped, continuing with startup');
+    }
+  }
+  
   // Check required environment variables before starting
   checkRequiredEnvConfig();
   
