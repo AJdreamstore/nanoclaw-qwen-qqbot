@@ -512,6 +512,48 @@ sqlite3 store/messages.db
 tail -f groups/main/logs/*.log
 ```
 
+### 日常配置管理
+
+**配置助手名称**：
+```bash
+# 交互式修改助手名称
+npm run config:name
+
+# 或直接使用 npx
+npx tsx setup/config-manager.ts name
+```
+
+**配置 AI 交互语言**：
+```bash
+# 交互式选择语言
+npm run config:language
+
+# 或直接使用 npx
+npx tsx setup/config-manager.ts language
+```
+
+**查看当前配置**：
+```bash
+# 显示助手名称和语言设置
+npm run config:show
+
+# 或直接使用 npx
+npx tsx setup/config-manager.ts show
+```
+
+**帮助信息**：
+```bash
+npm run config
+# 或
+npx tsx setup/config-manager.ts help
+```
+
+**配置管理器功能**：
+- ✅ 修改助手名称（更新 SYSTEM.md 和 QWEN.md）
+- ✅ 修改 AI 交互语言（更新 .env 和 markdown 文件）
+- ✅ 查看当前配置
+- ✅ 重启后生效
+
 ### 执行模式
 
 **原生模式**（默认）：
@@ -597,6 +639,81 @@ sqlite3 store/messages.db "SELECT * FROM scheduled_tasks WHERE status='active';"
 - [QwenCode 适配方案](QwQnanoclaw 适配方案：QwenCode 替代 ClaudeCode.md) - 技术架构说明
 - [QQ Bot API](https://bot.q.qq.com/wiki/) - QQ 机器人开发文档
 - [Qwen Code 文档](https://github.com/QwenLM/qwen-code) - Qwen Code 使用指南
+
+---
+
+## 📄 SYSTEM.md vs QWEN.md
+
+本项目使用两种配置文件来指导 AI 行为：
+
+### SYSTEM.md - 系统指令
+
+**作用**：告诉 AI **"如何工作"**（工作方式、行为规范）
+
+**工作方式**：
+- 通过环境变量 `QWEN_SYSTEM_MD` 传递给 Qwen Code
+- 作为 Qwen Code 启动时的**系统提示词（System Prompt）**
+
+**内容包括**：
+- ✅ 核心规则（行为准则）
+- ✅ 沟通风格（简洁、移动友好）
+- ✅ 能力说明
+- ✅ 工作空间定义
+- ✅ 记忆系统使用说明
+- ✅ 技能管理指令
+
+**特点**：
+- 🎯 **行为准则** - 指导 AI 如何思考、如何回复
+- 🎯 **不可见** - 用户看不到这些指令
+- 🎯 **强制性** - AI 必须遵守的规则
+
+**位置**：`groups/global/SYSTEM.md`（运行时复制到每个群组目录）
+
+### QWEN.md - 项目上下文
+
+**作用**：告诉 AI **"这是什么项目"**（项目背景、功能介绍、目录结构）
+
+**工作方式**：
+- 复制到每个群组的 workspace 目录
+- 作为**项目文档**供 AI 阅读参考
+
+**内容包括**：
+- ✅ 项目概述
+- ✅ 项目规则
+- ✅ 功能列表
+- ✅ 工作空间说明
+- ✅ 目录挂载说明
+- ✅ 技能管理说明
+
+**特点**：
+- 📖 **参考文档** - AI 可以主动阅读了解项目
+- 📖 **可见** - 用户可以看到这个文件
+- 📖 **描述性** - 帮助 AI 理解项目结构
+
+**位置**：`groups/global/QWEN.md`（复制到每个群组的 `groups/<group-folder>/QWEN.md`）
+
+### 主要区别
+
+| 特性 | SYSTEM.md | QWEN.md |
+|---------|-----------|---------|
+| **用途** | 系统提示词（行为规则） | 项目上下文（文档） |
+| **传递方式** | 环境变量 `QWEN_SYSTEM_MD` | 文件复制到 workspace |
+| **AI 看待** | 必须遵守的指令 | 可以参考的文档 |
+| **用户可见** | ❌ 否 | ✅ 是 |
+| **内容类型** | 行为规则、沟通风格 | 项目介绍、功能说明 |
+| **重要性** | 必需（影响 AI 行为） | 可选（帮助 AI 理解） |
+| **类比** | 员工的"工作守则" | 公司的"产品介绍手册" |
+
+### 简单理解
+
+- **SYSTEM.md** = AI 的"**工作守则**"（怎么说话、怎么工作）
+- **QWEN.md** = AI 的"**项目手册**"（这是什么项目、有什么功能）
+
+两者配合使用，让 AI 既知道**如何工作**，也知道**在什么环境下工作**。
+
+---
+
+## ❓ 常见问题
 
 ---
 

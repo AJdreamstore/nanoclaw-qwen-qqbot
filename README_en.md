@@ -45,7 +45,7 @@
 - Create custom skills for your specific needs
 - Skills are global across all groups
 
-### 📦 **Easy Installation & Configuration**
+###  **Easy Installation & Configuration**
 - One-click installers for Windows, macOS, Linux
 - Interactive setup wizard guides you through configuration
 - Supports multiple data sources: QQ Bot, WhatsApp (optional)
@@ -98,28 +98,28 @@ Get API Key from [Alibaba Cloud DashScope](https://dashscope.console.aliyun.com/
 ```
 
 The installer will:
-- ✅ Check and install Node.js 20+ if needed
+- ✅ Check and install Node.js 20+ (if needed)
 - ✅ Install project dependencies
-- ✅ Build the project (compile TypeScript)
+- ✅ **Build project** (compile TypeScript)
 - ✅ Create `.env` file from template
 - ✅ Configure Docker Sandbox (optional)
 - ✅ Run setup wizard (optional)
 
 **What happens during installation:**
 
-1. **Environment Setup** (`install.sh`):
-   - Checks Node.js version
-   - Installs dependencies (`npm install`)
-   - Builds project (`npm run build`)
-   - Creates `.env` file
-   - Configures Docker Sandbox mode
+1. **Environment Preparation** (`install.sh`):
+   - Check Node.js version
+   - Install dependencies (`npm install`)
+   - **Build project** (`npm run build`) ← New!
+   - Create `.env` file
+   - Configure Docker Sandbox mode
 
-2. **Application Configuration** (`setup/index.ts`):
-   - Validates environment
-   - Checks Qwen Code installation
-   - Configures AI features (agent-browser)
-   - Sets up database
-   - Registers QQ groups
+2. **Application Setup** (`setup/index.ts`):
+   - Validate environment (assumes ready)
+   - Check Qwen Code installation
+   - Configure AI features (agent-browser)
+   - Setup database
+   - Register QQ groups
 
 ---
 
@@ -130,36 +130,36 @@ The installer will:
 ```
 QwQnanoclaw
 ├── Communication Layer (Channels)
-│   ├── QQ Bot          # QQ message handling
+│   ├── QQ Bot          # QQ message sending/receiving
 │   ├── WhatsApp        # WhatsApp support
 │   └── More channels...
 │
 ├── Routing Layer (Router)
-│   ├── Message Distribution    # Route messages to groups
-│   ├── Trigger Detection       # Detect @Andy triggers
-│   └── Session Management      # Maintain conversation history
+│   ├── Message dispatch    # Route messages to groups
+│   ├── Trigger detection   # Identify @Andy triggers
+│   └── Session management  # Maintain conversation history
 │
 ├── Execution Layer (Container Runner)
-│   ├── Qwen Code       # AI core (replacing Claude Code)
-│   ├── Session Isolation       # Independent session per group
-│   └── Working Directory       # groups/<group-folder>/
+│   ├── Qwen Code       # AI core (replaces Claude Code)
+│   ├── Session isolation   # Independent session per group
+│   └── Working directory   # groups/<group-folder>/
 │
 └── Storage Layer (Storage)
-    ├── SQLite (better-sqlite3 / sql.js) # Messages, groups, tasks data
-    ├── Filesystem      # groups/ directory structure
-    └── Session Files   # ~/.qwen/projects/
+    ├── SQLite (sql.js) # Messages, groups, tasks data
+    ├── File system     # groups/ directory structure
+    └── Session files   # ~/.qwen/projects/
 ```
 
 ### Directory Structure
 
 ```
 qwqnanoclaw/
-├── groups/                      # Group working directories
-│   ├── main/                    # Main Group (Admin Channel)
-│   │   ├── config.json          # Main group configuration
+├── groups/                      # Group working directory
+│   ├── main/                    # Main group (admin channel)
+│   │   ├── config.json          # Main group config
 │   │   ├── QWEN.md              # AI instructions
 │   │   └── logs/                # Logs
-│   ├── global/                  # Global configuration
+│   ├── global/                  # Global config
 │   │   └── QWEN.md              # Global AI instructions
 │   └── <group-folder>/          # Regular groups
 │       ├── QWEN.md              # Group-specific config (optional)
@@ -167,7 +167,7 @@ qwqnanoclaw/
 │
 ├── data/                        # Data directory
 │   ├── messages.db              # SQLite database
-│   ├── sessions/                # Session configuration
+│   ├── sessions/                # Session config
 │   │   └── <group-folder>/
 │   │       └── .qwen-code/
 │   │           └── settings.json
@@ -178,8 +178,8 @@ qwqnanoclaw/
 │   ├── config.ts                # Configuration
 │   ├── container-runner.ts      # Qwen Code executor
 │   ├── db.ts                    # Database operations
-│   ├── index.ts                 # Main entry point
-│   └── router.ts                # Message router
+│   ├── index.ts                 # Main entry
+│   └── router.ts                # Message routing
 │
 └── store/                       # Runtime storage
     └── messages.db              # Database (runtime)
@@ -194,7 +194,27 @@ qwqnanoclaw/
 Each QQ group or private chat is a "Group" with independent:
 - **Session**: Conversation history saved at `~/.qwen/projects/<group-folder>/chats/<sessionId>.jsonl`
 - **Working Directory**: `groups/<group-folder>/`, AI can only access this directory
-- **Configuration**: Optional `QWEN.md` defining AI behavior
+- **Config Files**: Optional `QWEN.md` to define AI behavior
+
+### 2. Session Management
+
+**How Session Works**:
+- When a group sends a message, QwQnanoclaw checks if session file exists: `~/.qwen/projects/<group-folder>/chats/<sessionId>.jsonl`
+- If session exists, resume conversation with full history
+- If no session exists, create new session with same ID
+- All messages stored in JSONL format with metadata (type, timestamp, role, content)
+- When approaching token limits, Qwen Code's chat compression automatically manages history
+
+**Session File Example**:
+```jsonl
+{"uuid":"abc123","parentUuid":null,"sessionId":"default","type":"user","content":"Hello","timestamp":"2026-03-14T10:00:00Z"}
+{"uuid":"def456","parentUuid":"abc123","sessionId":"default","type":"assistant","content":"Hi there!","timestamp":"2026-03-14T10:00:05Z"}
+```
+
+**Long-term Memory**:
+- Qwen Code supports `/save_memory` command to save important facts across all sessions
+- Saved memories stored in `~/.qwen/QWEN.md` (global) or project-specific QWEN.md files
+- This is separate from session history and persists across all groups
 
 ### 2. Main Group
 
@@ -540,6 +560,27 @@ npx tsx setup/config-manager.ts help
 
 ### Execution Modes
 
+# Reset with backup
+npm run reset -- --backup
+
+# Force reset (skip confirmation)
+npm run reset:force
+
+# Clean and reinitialize
+npm run clean
+
+# Configure main group
+npx tsx groups/main/setup-main-group.ts --jid "qq:group:ID" --name "Name"
+
+# View database
+sqlite3 store/messages.db
+
+# View logs
+tail -f groups/main/logs/*.log
+```
+
+### Execution Modes
+
 **Native Mode** (default):
 ```bash
 # .env configuration
@@ -710,33 +751,3 @@ Both work together to ensure AI knows **how to work** and **in what environment 
 
 ### Q: How to backup data?
 **A:** Backup `store/messages.db` and `groups/` directory.
-
-### Q: Can I change the main group?
-**A:** Yes. Re-run the configuration script and select a new group.
-
-### Q: Where are session files located?
-**A:** `~/.qwen/projects/<cwd-sanitized>/chats/<sessionId>.jsonl`
-
-### Q: How to view AI's thought process?
-**A:** Check log files in `groups/<group-folder>/logs/` directory.
-
----
-
-## 🎉 Acknowledgments
-
-- **NanoClaw Original Author**: Created an excellent lightweight AI assistant framework
-- **Qwen Code Team**: Provided powerful domestically available AI tool
-- **QQ Bot**: Provided stable messaging channel
-- **All Contributors**: Thank you for your support and contributions
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) file for details.
-
----
-
-<p align="center">
-  Made with ❤️ by the QwQnanoclaw Team
-</p>
