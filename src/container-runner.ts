@@ -242,12 +242,10 @@ async function runNativeAgent(
   }
 
   // Add approval mode and output format
-  qwenArgs.push('--approval-mode', APPROVAL_MODE);  // From .env config: plan | default | auto-edit | yolo
-  qwenArgs.push('--output-format', QWEN_OUTPUT_FORMAT);  // From .env config: text | json
+  qwenArgs.push('--approval-mode', APPROVAL_MODE);
+  qwenArgs.push('--output-format', QWEN_OUTPUT_FORMAT);
 
-  // Use --resume to continue existing session or start new one with --session-id
-  // Qwen Code stores sessions in ~/.qwen/projects/<cwd-sanitized>/chats/<sessionId>.jsonl
-  // sanitizeCwd: lowercase on Windows + replace all non-alphanumeric chars with '-'
+  // Check session ID
   logger.info({ 
     group: group.name, 
     inputSessionId: input.sessionId,
@@ -256,8 +254,6 @@ async function runNativeAgent(
   
   let isResumedSession = false;
   if (input.sessionId) {
-    // Convert cwd path to Qwen Code's project directory naming convention
-    // Match Qwen Code's sanitizeCwd logic in storage.ts
     let projectDirName = workingDir;
     if (os.platform() === 'win32') {
       projectDirName = projectDirName.toLowerCase();
@@ -278,22 +274,16 @@ async function runNativeAgent(
     }, 'Checking Qwen Code session');
     
     if (fs.existsSync(sessionFile)) {
-      // Resume existing session
       qwenArgs.push('--resume', input.sessionId);
       logger.info({ group: group.name, sessionId: input.sessionId, sessionFile }, 'Resuming existing Qwen Code session');
       isResumedSession = true;
     } else {
-      // Session file not found, clear session ID to let Qwen Code generate a new one
       logger.info({ group: group.name, sessionId: input.sessionId }, 'Session file not found, will create new session');
     }
   }
 
-  // For resumed sessions, don't use --prompt because Qwen Code will load history
-  // from session file automatically. Instead, we'll write new messages to stdin.
-  // Only add --prompt for new sessions (not resumed)
-  if (!isResumedSession) {
-    qwenArgs.push('--prompt', input.prompt);
-  }
+  // IMPORTANT: Do NOT use --prompt flag! Pass prompt via stdin to avoid shell injection issues.
+  // This is critical for non-English prompts that may contain special characters.
 
   logger.debug(
     { 
@@ -393,14 +383,16 @@ async function runNativeAgent(
 
     onProcess(child, `native-${group.folder}`);
 
-    // For resumed sessions, write new messages to stdin (not --prompt)
-    // This allows Qwen Code to load history from session file and treat stdin as new input
-    if (isResumedSession) {
-      if (child.stdin) {
-        child.stdin.write(input.prompt);
-        child.stdin.end();
-        logger.info({ group: group.name, promptLength: input.prompt.length }, 'Writing new messages to stdin for resumed session');
-      }
+    // Write prompt to stdin for ALL cases (new session and resumed session)
+    // This avoids shell injection issues with special characters in prompts
+    if (child.stdin) {
+      child.stdin.write(input.prompt);
+      child.stdin.end();
+      logger.info({ 
+        group: group.name, 
+        promptLength: input.prompt.length,
+        isResumedSession 
+      }, 'Writing prompt to stdin');
     }
 
     let stdout = '';
