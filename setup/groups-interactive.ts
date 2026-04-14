@@ -248,7 +248,7 @@ Your workspace is \`groups/<group-folder>/\` - this is your sandbox.
     await new Promise(resolve => setTimeout(resolve, 100));
     
     // Ask for operation mode
-    const mode = await question('请选择配置模式：\n  1. 创建主群组（可选）\n  2. 配置全局称呼\n  0. 取消\n\n请输入选项 (0-2): ');
+    const mode = await question('请选择配置模式：\n  1. 创建主群组（可选）\n  2. 配置全局称呼\n  3. 配置 AI 交互语言\n  0. 取消\n\n请输入选项 (0-3): ');
     
     if (mode.trim() === '0') {
       console.log('\n已取消配置。\n');
@@ -265,6 +265,9 @@ Your workspace is \`groups/<group-folder>/\` - this is your sandbox.
     } else if (mode.trim() === '2') {
       // Configure global assistant name
       await configureGlobalAssistantName(question);
+    } else if (mode.trim() === '3') {
+      // Configure AI language
+      await configureLanguage(question);
     } else {
       console.log('\n无效的选项，已取消配置。\n');
       process.exit(0);
@@ -444,6 +447,123 @@ async function configureGlobalAssistantName(
   }
   
   console.log(`   ✓ 全局称呼已配置为：${assistantName}`);
+  console.log('   ℹ 重启后生效');
+}
+
+/**
+ * Configure AI interaction language
+ */
+async function configureLanguage(
+  question: (query: string) => Promise<string>,
+): Promise<void> {
+  console.log('\n📋 配置 AI 交互语言\n');
+  
+  console.log('   常用语言选项：');
+  console.log('   1. 中文 (Chinese)');
+  console.log('   2. 英文 (English)');
+  console.log('   3. 日文 (日本語)');
+  console.log('   4. 韩文 (한국어)');
+  console.log('   5. 法文 (Français)');
+  console.log('   6. 德文 (Deutsch)');
+  console.log('   7. 西班牙文 (Español)');
+  console.log('   8. 其他语言');
+  console.log('');
+  
+  const langChoice = await question('   请选择语言 (1-8): ');
+  
+  let selectedLanguage: string;
+  
+  switch (langChoice.trim()) {
+    case '1':
+      selectedLanguage = '中文 (Chinese)';
+      break;
+    case '2':
+      selectedLanguage = 'English';
+      break;
+    case '3':
+      selectedLanguage = '日本語 (Japanese)';
+      break;
+    case '4':
+      selectedLanguage = '한국어 (Korean)';
+      break;
+    case '5':
+      selectedLanguage = 'Français (French)';
+      break;
+    case '6':
+      selectedLanguage = 'Deutsch (German)';
+      break;
+    case '7':
+      selectedLanguage = 'Español (Spanish)';
+      break;
+    case '8':
+    default:
+      selectedLanguage = await question('   请输入语言名称（例如：Russian, Arabic, Thai 等）：');
+      break;
+  }
+  
+  // Write to .env
+  const envPath = path.join(process.cwd(), '.env');
+  let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf-8') : '';
+  
+  // Update or add AI_LANGUAGE
+  if (envContent.includes('AI_LANGUAGE=')) {
+    envContent = envContent.replace(/AI_LANGUAGE=.*/, `AI_LANGUAGE=${selectedLanguage}`);
+  } else {
+    envContent += `\nAI_LANGUAGE=${selectedLanguage}`;
+  }
+  
+  fs.writeFileSync(envPath, envContent);
+  console.log(`   ✓ 已设置 AI 交互语言：${selectedLanguage}`);
+  
+  // Update SYSTEM.md with language instruction
+  const globalSystemMd = path.join(process.cwd(), 'groups', 'global', 'SYSTEM.md');
+  if (fs.existsSync(globalSystemMd)) {
+    let content = fs.readFileSync(globalSystemMd, 'utf-8');
+    
+    // Remove existing language section if it exists
+    content = content.replace(/\n## Language\s+[\s\S]*?(?=\n##|\n$|$)/gi, '');
+    
+    // Add new language section after Core Rules
+    const languageSection = `\n## Language\nYou MUST communicate with users in **${selectedLanguage}** at all times. This includes:\n- All responses and explanations\n- Code comments and documentation\n- Error messages and warnings\n- Internal thoughts (use ${selectedLanguage} for reasoning)\n\nIf the user switches to another language, adapt accordingly but default to ${selectedLanguage}.\n`;
+    
+    // Find position after Core Rules section
+    const coreRulesMatch = content.match(/## Core Rules\s+[\s\S]*?(?=\n##)/);
+    if (coreRulesMatch) {
+      const insertPos = coreRulesMatch.index! + coreRulesMatch[0].length;
+      content = content.slice(0, insertPos) + languageSection + content.slice(insertPos);
+    } else {
+      // If no Core Rules found, add after first line
+      content = content.replace(/^(\S.*\n)/, `$1${languageSection}`);
+    }
+    
+    fs.writeFileSync(globalSystemMd, content);
+    console.log('   ✓ 已更新 SYSTEM.md 中的语言设置');
+  }
+  
+  // Update QWEN.md with language instruction
+  const globalQwenMd = path.join(process.cwd(), 'groups', 'global', 'QWEN.md');
+  if (fs.existsSync(globalQwenMd)) {
+    let content = fs.readFileSync(globalQwenMd, 'utf-8');
+    
+    // Remove existing language section if it exists
+    content = content.replace(/\n## Language\s+[\s\S]*?(?=\n##|\n$|$)/gi, '');
+    
+    // Add language section after Overview
+    const languageSection = `\n## Language\nYou MUST communicate with users in **${selectedLanguage}** at all times. This includes all responses, code comments, and internal reasoning.\n`;
+    
+    const overviewMatch = content.match(/## Overview\s+[\s\S]*?(?=\n##)/);
+    if (overviewMatch) {
+      const insertPos = overviewMatch.index! + overviewMatch[0].length;
+      content = content.slice(0, insertPos) + languageSection + content.slice(insertPos);
+    } else {
+      // If no Overview found, add after first line
+      content = content.replace(/^(\S.*\n)/, `$1${languageSection}`);
+    }
+    
+    fs.writeFileSync(globalQwenMd, content);
+    console.log('   ✓ 已更新 QWEN.md 中的语言设置');
+  }
+  
   console.log('   ℹ 重启后生效');
 }
 
