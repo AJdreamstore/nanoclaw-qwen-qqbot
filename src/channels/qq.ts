@@ -287,9 +287,22 @@ export class QQChannel implements Channel {
     let quotedContent = '';
     const messageReference = msgData.message_reference as Record<string, unknown> | undefined;
     if (messageReference) {
+      // Try different possible structures
       const quotedMsg = messageReference.message as Record<string, unknown> | undefined;
       if (quotedMsg) {
         quotedContent = quotedMsg.content as string || '';
+      }
+    }
+    
+    // Also check if message_reference is at the top level of msgData
+    if (!quotedContent && msgData.message) {
+      const messageObj = msgData.message as Record<string, unknown>;
+      const ref = messageObj.message_reference as Record<string, unknown> | undefined;
+      if (ref) {
+        const quotedMsg = ref.message as Record<string, unknown> | undefined;
+        if (quotedMsg) {
+          quotedContent = quotedMsg.content as string || '';
+        }
       }
     }
 
@@ -333,6 +346,11 @@ export class QQChannel implements Channel {
     let processedContent = content;
     if (quotedContent) {
       processedContent = `（引用：${quotedContent}）\n\n${content}`;
+      logger.info({ 
+        group: chatJid, 
+        originalContent: content,
+        quotedContent 
+      }, 'Message with quote received');
     }
 
     const newMessage: NewMessage = {
