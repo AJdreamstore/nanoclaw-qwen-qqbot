@@ -282,10 +282,12 @@ async function runNativeAgent(
     }
   }
 
-  // Add --prompt flag for new sessions (official Qwen Code headless mode)
-  // For resumed sessions, we'll write to stdin instead
-  if (!isResumedSession) {
-    qwenArgs.push('--prompt', input.prompt);
+  // Use positional prompt for new sessions (recommended by Qwen Code)
+  // For resumed sessions, write to stdin
+  if (isResumedSession) {
+    // Will write to stdin after spawn
+  } else {
+    qwenArgs.push(input.prompt);
   }
 
   logger.debug(
@@ -382,8 +384,23 @@ async function runNativeAgent(
 
     onProcess(child, `native-${group.folder}`);
 
-    // Qwen Code reads prompt from --prompt flag, no need to write to stdin
-    // Stdin writing caused "Cannot use both positional prompt and --prompt flag" error
+    // For resumed sessions, write prompt to stdin
+    // For new sessions, Qwen Code reads positional prompt from args
+    if (isResumedSession && child.stdin) {
+      child.stdin.write(input.prompt);
+      child.stdin.end();
+      logger.info({ 
+        group: group.name, 
+        promptLength: input.prompt.length,
+        isResumedSession
+      }, 'Writing prompt to stdin for resumed session');
+    } else {
+      logger.info({ 
+        group: group.name, 
+        promptLength: input.prompt.length,
+        isResumedSession
+      }, 'Using positional prompt for new session');
+    }
 
     let stdout = '';
     let stderr = '';
