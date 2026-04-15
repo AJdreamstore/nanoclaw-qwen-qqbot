@@ -336,10 +336,6 @@ async function runNativeAgent(
       qwenCliPath = 'qwen';
     }
     
-    // Build command - use positional prompt (last argument) instead of --prompt flag
-    // For resumed sessions, don't include --prompt - we'll write to stdin instead
-    const argsWithoutPromptFlag = qwenArgs.filter(arg => arg !== '--prompt');
-    
     // Ensure working directory exists
     fs.mkdirSync(workingDir, { recursive: true });
     
@@ -348,7 +344,7 @@ async function runNativeAgent(
     logger.info({ 
       group: group.name, 
       cliPath: qwenCliPath,
-      args: argsWithoutPromptFlag,
+      args: qwenArgs,
       cwd: workingDir,
       hasOnOutput: !!onOutput,
       promptLength: input.prompt.length,
@@ -362,7 +358,7 @@ async function runNativeAgent(
     let child;
     if (qwenCliPath === 'qwen') {
       // qwenCliPath is a command name, not a file path - execute it directly
-      child = spawn('qwen', argsWithoutPromptFlag, {
+      child = spawn('qwen', qwenArgs, {
         cwd: workingDir,
         env: {
           ...process.env,
@@ -373,7 +369,7 @@ async function runNativeAgent(
       });
     } else {
       // qwenCliPath is a file path - execute it with node
-      child = spawn(process.execPath, [qwenCliPath, ...argsWithoutPromptFlag], {
+      child = spawn(process.execPath, [qwenCliPath, ...qwenArgs], {
         cwd: workingDir,
         env: {
           ...process.env,
