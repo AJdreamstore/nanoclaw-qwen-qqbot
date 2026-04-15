@@ -283,6 +283,16 @@ export class QQChannel implements Channel {
     const content = msgData.content as string;
     const timestamp = msgData.timestamp as string;
 
+    // Extract quoted/reply message content if present
+    let quotedContent = '';
+    const messageReference = msgData.message_reference as Record<string, unknown> | undefined;
+    if (messageReference) {
+      const quotedMsg = messageReference.message as Record<string, unknown> | undefined;
+      if (quotedMsg) {
+        quotedContent = quotedMsg.content as string || '';
+      }
+    }
+
     let senderId = '';
     let chatJid = '';
 
@@ -319,8 +329,11 @@ export class QQChannel implements Channel {
       }
     }
 
-    // Pass original content without trigger prefix - trigger is handled by router
-    const processedContent = content;
+    // Build content with quoted message if present
+    let processedContent = content;
+    if (quotedContent) {
+      processedContent = `（引用：${quotedContent}）\n\n${content}`;
+    }
 
     const newMessage: NewMessage = {
       id: messageId,
