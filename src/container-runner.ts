@@ -282,8 +282,11 @@ async function runNativeAgent(
     }
   }
 
-  // IMPORTANT: Do NOT use --prompt flag! Pass prompt via stdin to avoid shell injection issues.
-  // This is critical for non-English prompts that may contain special characters.
+  // Add --prompt flag for new sessions (official Qwen Code headless mode)
+  // For resumed sessions, we'll write to stdin instead
+  if (!isResumedSession) {
+    qwenArgs.push('--prompt', input.prompt);
+  }
 
   logger.debug(
     { 
@@ -383,16 +386,15 @@ async function runNativeAgent(
 
     onProcess(child, `native-${group.folder}`);
 
-    // Write prompt to stdin for ALL cases (new session and resumed session)
-    // This avoids shell injection issues with special characters in prompts
-    if (child.stdin) {
+    // For resumed sessions, write new messages to stdin
+    // For new sessions, Qwen Code reads from --prompt flag
+    if (isResumedSession && child.stdin) {
       child.stdin.write(input.prompt);
       child.stdin.end();
       logger.info({ 
         group: group.name, 
-        promptLength: input.prompt.length,
-        isResumedSession 
-      }, 'Writing prompt to stdin');
+        promptLength: input.prompt.length 
+      }, 'Writing prompt to stdin for resumed session');
     }
 
     let stdout = '';
