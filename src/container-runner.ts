@@ -382,16 +382,8 @@ async function runNativeAgent(
 
     onProcess(child, `native-${group.folder}`);
 
-    // For resumed sessions, write new messages to stdin
-    // For new sessions, Qwen Code reads from --prompt flag
-    if (isResumedSession && child.stdin) {
-      child.stdin.write(input.prompt);
-      child.stdin.end();
-      logger.info({ 
-        group: group.name, 
-        promptLength: input.prompt.length 
-      }, 'Writing prompt to stdin for resumed session');
-    }
+    // Qwen Code reads prompt from --prompt flag, no need to write to stdin
+    // Stdin writing caused "Cannot use both positional prompt and --prompt flag" error
 
     let stdout = '';
     let stderr = '';
