@@ -257,6 +257,9 @@ async function runNativeAgent(
     }, 'No session ID, Qwen Code will create new session');
   }
 
+  // Add positional prompt for non-interactive mode
+  qwenArgs.push(input.prompt);
+
   logger.debug(
     { 
       group: group.name, 
@@ -348,16 +351,6 @@ async function runNativeAgent(
     }
 
     onProcess(child, `native-${group.folder}`);
-
-    // When using --continue, write prompt to stdin
-    if (child.stdin) {
-      child.stdin.write(input.prompt);
-      child.stdin.end();
-      logger.info({ 
-        group: group.name, 
-        promptLength: input.prompt.length,
-      }, 'Writing prompt to stdin for --continue mode');
-    }
 
     let stdout = '';
     let stderr = '';
