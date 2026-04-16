@@ -342,28 +342,42 @@ export class QQChannel implements Channel {
     }, 'Checking for message reference');
     
     // Try to find quote in msg_elements
-    const msgElements = msgData.msg_elements as Array<{
-      type: string;
-      element: Record<string, unknown>;
-    }> | undefined;
+    const msgElements = msgData.msg_elements as Array<Record<string, unknown>> | undefined;
     
     let quotedMessageId: string | undefined;
+    let quotedContentDirect: string | undefined;
     
     if (messageReference?.message_id) {
       quotedMessageId = messageReference.message_id;
     } else if (msgElements) {
       // Look for reply element in msg_elements
       for (const element of msgElements) {
+        // Check if this is a reply element
         if (element.type === 'reply' && element.element) {
           const replyElement = element.element as { id?: string; message_id?: string };
           quotedMessageId = replyElement.id || replyElement.message_id;
-          logger.info({ quotedMessageId }, 'Found reply in msg_elements');
+          logger.info({ quotedMessageId }, 'Found reply in msg_elements (type=reply)');
           break;
+        }
+        // Check if element directly contains content and msg_idx (QQ's inline quote format)
+        if (element.content && element.msg_idx) {
+          quotedContentDirect = element.content as string;
+          logger.info({ 
+            quotedContent: quotedContentDirect,
+            msgIdx: element.msg_idx
+          }, 'Found inline quote in msg_elements');
         }
       }
     }
     
-    if (quotedMessageId) {
+    // Use direct content if available, otherwise lookup by ID
+    if (quotedContentDirect) {
+      quotedContent = quotedContentDirect;
+      logger.info({ 
+        group: chatJid,
+        quotedContentLength: quotedContent.length
+      }, 'Quote found inline');
+    } else if (quotedMessageId) {
       logger.info({ 
         group: chatJid,
         quotedMessageId 
