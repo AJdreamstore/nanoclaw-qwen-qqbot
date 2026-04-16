@@ -197,6 +197,38 @@ export function storeMessage(msg: NewMessage): void {
 }
 
 /**
+ * Get a message by its ID and chat JID
+ */
+export function getMessageById(chatJid: string, messageId: string): NewMessage | null {
+  if (!db) throw new Error('Database not initialized');
+  
+  const stmt = db.prepare(`
+    SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me, is_bot_message
+    FROM messages
+    WHERE chat_jid = ? AND id = ?
+  `);
+  
+  const result = stmt.get([chatJid, messageId]);
+  stmt.free();
+  
+  if (!result) {
+    return null;
+  }
+  
+  const row = result as any[];
+  return {
+    id: row[0] as string,
+    chat_jid: row[1] as string,
+    sender: row[2] as string,
+    sender_name: row[3] as string,
+    content: row[4] as string,
+    timestamp: row[5] as string,
+    is_from_me: (row[6] as number) === 1,
+    is_bot_message: (row[7] as number) === 1,
+  };
+}
+
+/**
  * Get all chats from the database.
  */
 export function getAllChats(): any[] {

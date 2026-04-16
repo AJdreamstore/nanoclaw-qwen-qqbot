@@ -8,6 +8,7 @@ import {
 } from '../types.js';
 import { logger } from '../logger.js';
 import { QQ_CONFIG, ASSISTANT_NAME, QQ_HEARTBEAT_INTERVAL } from '../config.js';
+import { getMessageById } from '../db.js';
 import { generateRefIdx, setRefIndex, getRefIndex, formatRefEntryForAgent } from '../ref-index-store.js';
 import { parseFaceTags, stripMentionText } from '../utils/text-parsing.js';
 import { processAttachments } from '../inbound-attachments.js';
@@ -302,54 +303,6 @@ export class QQChannel implements Channel {
       asr_refer_text?: string;
     }> | undefined;
 
-    // Extract quoted/reply message content if present
-    let quotedContent = '';
-    const messageReference = msgData.message_reference as Record<string, unknown> | undefined;
-    let refMsgIdx = msgData.refMsgIdx as string | undefined;
-    
-    if (messageReference) {
-      // Try different possible structures
-      const quotedMsg = messageReference.message as Record<string, unknown> | undefined;
-      if (quotedMsg) {
-        quotedContent = quotedMsg.content as string || '';
-      }
-      // Also try to get refMsgIdx from message_reference
-      if (!refMsgIdx) {
-        refMsgIdx = messageReference.message_id as string || undefined;
-      }
-    }
-    
-    // Also check if message_reference is at the top level of msgData
-    if (!quotedContent && msgData.message) {
-      const messageObj = msgData.message as Record<string, unknown>;
-      const ref = messageObj.message_reference as Record<string, unknown> | undefined;
-      if (ref) {
-        const quotedMsg = ref.message as Record<string, unknown> | undefined;
-        if (quotedMsg) {
-          quotedContent = quotedMsg.content as string || '';
-        }
-        if (!refMsgIdx) {
-          refMsgIdx = ref.message_id as string || undefined;
-        }
-      }
-    }
-
-    // If we have a refMsgIdx, try to get the quoted content from our cache
-    if (refMsgIdx && !quotedContent) {
-      const refEntry = getRefIndex(refMsgIdx);
-      if (refEntry) {
-        quotedContent = formatRefEntryForAgent(refEntry);
-        logger.info({ 
-          group: type === 'GROUP_AT_MESSAGE_CREATE' ? msgData.group_openid : 'C2C',
-          refMsgIdx,
-          sender: refEntry.senderName || refEntry.senderId,
-          contentLength: refEntry.content.length
-        }, 'Quote detected from ref index cache');
-      } else {
-        logger.info({ refMsgIdx }, 'Quote detected but not in cache');
-      }
-    }
-
     let senderId = '';
     let chatJid = '';
 
@@ -365,6 +318,33 @@ export class QQChannel implements Channel {
       const userId = author?.user_openid as string || msgData.user_id as string;
       senderId = String(userId);
       chatJid = `qq:c2c:${senderId}`;
+    }
+
+    // Extract quoted/reply message content if present
+    let quotedContent = '';
+    const messageReference = msgData.message_reference as { message_id?: string } | undefined;
+    
+    if (messageReference?.message_id) {
+      const quotedMessageId = messageReference.message_id;
+      
+      // Get quoted message from database
+      const quotedMsg = getMessageById(chatJid, quotedMessageId);
+      
+      if (quotedMsg) {
+        // Format: sender name + content
+        quotedContent = `${quotedMsg.sender_name}: ${quotedMsg.content}`;
+        logger.info({ 
+          group: chatJid,
+          quotedMessageId,
+          sender: quotedMsg.sender_name,
+          contentLength: quotedMsg.content.length
+        }, 'Quote retrieved from database');
+      } else {
+        logger.warn({ 
+          group: chatJid,
+          quotedMessageId 
+        }, 'Quoted message not found in database (may be expired or not stored)');
+      }
     }
 
     if (!content && attachments?.length === 0) {
