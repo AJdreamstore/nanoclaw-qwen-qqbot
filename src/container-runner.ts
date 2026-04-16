@@ -426,13 +426,13 @@ async function runNativeAgent(
       // Find the actual session ID used by Qwen Code (even on error)
       // Qwen Code stores sessions in ~/.qwen/projects/<projectDirName>/chats/<sessionId>.jsonl
       // We need to find the latest session file in the project directory
-      // IMPORTANT: Qwen Code runs in Docker, so it uses the container workspace path
+      // IMPORTANT: When running in Docker sandbox, Qwen Code uses the host working directory path
       let actualSessionId: string | undefined;
       
       try {
-        // Use the same logic as Qwen Code to calculate project directory name
-        // Qwen Code uses the container workspace path when running in Docker
-        let projectDirName = QWEN_SANDBOX_WORKSPACE; // Use container workspace, not host workingDir
+        // Use the host working directory to calculate project directory name
+        // because that's where Qwen Code actually stores the session files
+        let projectDirName = workingDir;
         if (os.platform() === 'win32') {
           projectDirName = projectDirName.toLowerCase();
         }
