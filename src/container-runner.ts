@@ -260,6 +260,17 @@ async function runNativeAgent(
   // Add positional prompt for non-interactive mode
   qwenArgs.push(input.prompt);
 
+  // Add system prompt from SYSTEM.md file
+  const systemMdPath = path.join(workingDir, 'SYSTEM.md');
+  if (fs.existsSync(systemMdPath)) {
+    const systemPrompt = fs.readFileSync(systemMdPath, 'utf-8');
+    qwenArgs.push('--append-system-prompt', systemPrompt);
+    logger.info({ 
+      group: group.name, 
+      systemPromptLength: systemPrompt.length,
+    }, 'Added SYSTEM.md as system prompt');
+  }
+
   logger.debug(
     { 
       group: group.name, 
