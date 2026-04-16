@@ -432,10 +432,13 @@ async function runNativeAgent(
         // Find the actual session ID used by Qwen Code
         // Qwen Code stores sessions in ~/.qwen/projects/<projectDirName>/chats/<sessionId>.jsonl
         // We need to find the latest session file in the project directory
+        // IMPORTANT: Qwen Code runs in Docker, so it uses the container workspace path
         let actualSessionId: string | undefined;
         
         try {
-          let projectDirName = workingDir;
+          // Use the same logic as Qwen Code to calculate project directory name
+          // Qwen Code uses the container workspace path when running in Docker
+          let projectDirName = QWEN_SANDBOX_WORKSPACE; // Use container workspace, not host workingDir
           if (os.platform() === 'win32') {
             projectDirName = projectDirName.toLowerCase();
           }
@@ -444,6 +447,14 @@ async function runNativeAgent(
           const qwenDir = path.join(os.homedir(), '.qwen');
           const projectsDir = path.join(qwenDir, 'projects');
           const chatsDir = path.join(projectsDir, projectDirName, 'chats');
+          
+          logger.info({
+            group: group.name,
+            QWEN_SANDBOX_WORKSPACE,
+            projectDirName,
+            chatsDir,
+            exists: fs.existsSync(chatsDir),
+          }, 'Checking Qwen Code session directory');
           
           if (fs.existsSync(chatsDir)) {
             const files = fs.readdirSync(chatsDir).filter(f => f.endsWith('.jsonl'));
@@ -463,6 +474,21 @@ async function runNativeAgent(
                 actualSessionId,
                 allSessions: files.slice(0, 5),
               }, 'Found Qwen Code session files');
+            } else {
+              logger.warn({
+                group: group.name,
+                chatsDir,
+              }, 'Chats directory exists but no session files found');
+            }
+          } else {
+            // List all projects for debugging
+            if (fs.existsSync(projectsDir)) {
+              const allProjects = fs.readdirSync(projectsDir);
+              logger.info({
+                group: group.name,
+                projectsDir,
+                allProjects,
+              }, 'Found Qwen Code projects');
             }
           }
         } catch (err) {
