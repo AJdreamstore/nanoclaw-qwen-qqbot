@@ -329,18 +329,41 @@ export class QQChannel implements Channel {
 
     // Extract quoted/reply message content if present
     let quotedContent = '';
+    
+    // Check message_reference first
     const messageReference = msgData.message_reference as { message_id?: string } | undefined;
     
     logger.info({ 
       group: type === 'GROUP_AT_MESSAGE_CREATE' ? msgData.group_openid : 'C2C',
       messageId,
       hasMessageReference: !!messageReference,
-      messageReference: messageReference || undefined
+      messageReference: messageReference || undefined,
+      msgElements: msgData.msg_elements || undefined
     }, 'Checking for message reference');
     
+    // Try to find quote in msg_elements
+    const msgElements = msgData.msg_elements as Array<{
+      type: string;
+      element: Record<string, unknown>;
+    }> | undefined;
+    
+    let quotedMessageId: string | undefined;
+    
     if (messageReference?.message_id) {
-      const quotedMessageId = messageReference.message_id;
-      
+      quotedMessageId = messageReference.message_id;
+    } else if (msgElements) {
+      // Look for reply element in msg_elements
+      for (const element of msgElements) {
+        if (element.type === 'reply' && element.element) {
+          const replyElement = element.element as { id?: string; message_id?: string };
+          quotedMessageId = replyElement.id || replyElement.message_id;
+          logger.info({ quotedMessageId }, 'Found reply in msg_elements');
+          break;
+        }
+      }
+    }
+    
+    if (quotedMessageId) {
       logger.info({ 
         group: chatJid,
         quotedMessageId 
