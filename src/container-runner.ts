@@ -339,14 +339,16 @@ async function runNativeAgent(
     let child;
     if (qwenCliPath === 'qwen') {
       // qwenCliPath is a command name, not a file path - execute it directly
+      // Use shell: false to avoid parsing special characters in arguments
       child = spawn('qwen', qwenArgs, {
         cwd: workingDir,
         env: {
           ...process.env,
-          QWEN_SYSTEM_MD: systemMdPath,
+          // Pass container path for SYSTEM.md (it's in the working directory which is mounted)
+          QWEN_SYSTEM_MD: '/workspace/group/SYSTEM.md',
         },
         stdio: ['pipe', 'pipe', 'pipe'],
-        shell: process.platform !== 'win32', // Enable shell on Linux/macOS for PATH lookup
+        shell: false, // Disable shell to avoid argument parsing issues
       });
     } else {
       // qwenCliPath is a file path - execute it with node
@@ -354,10 +356,11 @@ async function runNativeAgent(
         cwd: workingDir,
         env: {
           ...process.env,
-          QWEN_SYSTEM_MD: systemMdPath,
+          // Pass container path for SYSTEM.md (it's in the working directory which is mounted)
+          QWEN_SYSTEM_MD: '/workspace/group/SYSTEM.md',
         },
         stdio: ['pipe', 'pipe', 'pipe'],
-        shell: process.platform !== 'win32',
+        shell: false,
       });
     }
 
