@@ -8,6 +8,10 @@ import {
 } from '../types.js';
 import { logger } from '../logger.js';
 import { QQ_CONFIG, ASSISTANT_NAME, QQ_HEARTBEAT_INTERVAL } from '../config.js';
+import { generateRefIdx, setRefIndex, getRefIndex, formatRefEntryForAgent } from '../ref-index-store.js';
+import { parseFaceTags, stripMentionText } from '../utils/text-parsing.js';
+import { processAttachments } from '../inbound-attachments.js';
+import { resolveGroupFolderPath } from '../group-folder.js';
 
 // Import registerGroup function to dynamically register QQ chats
 let registerGroupCallback: ((jid: string, group: RegisteredGroup) => void) | null = null;
@@ -278,19 +282,40 @@ export class QQChannel implements Channel {
     }
   }
 
-  private handleIncomingMessage(msgData: Record<string, unknown>, type: string): void {
+  private async handleIncomingMessage(msgData: Record<string, unknown>, type: string): Promise<void> {
     const messageId = msgData.id as string;
     const content = msgData.content as string;
     const timestamp = msgData.timestamp as string;
 
+    // Parse face tags and clean mentions
+    let processedContent = parseFaceTags(content);
+    const mentions = msgData.mentions as unknown[] | undefined;
+    if (mentions) {
+      processedContent = stripMentionText(processedContent, mentions);
+    }
+
+    // Extract attachments if present
+    const attachments = msgData.attachments as Array<{
+      content_type: string;
+      filename?: string;
+      url: string;
+      asr_refer_text?: string;
+    }> | undefined;
+
     // Extract quoted/reply message content if present
     let quotedContent = '';
     const messageReference = msgData.message_reference as Record<string, unknown> | undefined;
+    let refMsgIdx = msgData.refMsgIdx as string | undefined;
+    
     if (messageReference) {
       // Try different possible structures
       const quotedMsg = messageReference.message as Record<string, unknown> | undefined;
       if (quotedMsg) {
         quotedContent = quotedMsg.content as string || '';
+      }
+      // Also try to get refMsgIdx from message_reference
+      if (!refMsgIdx) {
+        refMsgIdx = messageReference.message_id as string || undefined;
       }
     }
     
@@ -303,6 +328,25 @@ export class QQChannel implements Channel {
         if (quotedMsg) {
           quotedContent = quotedMsg.content as string || '';
         }
+        if (!refMsgIdx) {
+          refMsgIdx = ref.message_id as string || undefined;
+        }
+      }
+    }
+
+    // If we have a refMsgIdx, try to get the quoted content from our cache
+    if (refMsgIdx && !quotedContent) {
+      const refEntry = getRefIndex(refMsgIdx);
+      if (refEntry) {
+        quotedContent = formatRefEntryForAgent(refEntry);
+        logger.info({ 
+          group: type === 'GROUP_AT_MESSAGE_CREATE' ? msgData.group_openid : 'C2C',
+          refMsgIdx,
+          sender: refEntry.senderName || refEntry.senderId,
+          contentLength: refEntry.content.length
+        }, 'Quote detected from ref index cache');
+      } else {
+        logger.info({ refMsgIdx }, 'Quote detected but not in cache');
       }
     }
 
@@ -323,7 +367,7 @@ export class QQChannel implements Channel {
       chatJid = `qq:c2c:${senderId}`;
     }
 
-    if (!content || !chatJid) {
+    if (!content && attachments?.length === 0) {
       return;
     }
 
@@ -342,16 +386,84 @@ export class QQChannel implements Channel {
       }
     }
 
+    // Get group folder path for attachment downloads
+    const group = this.opts.registeredGroups()[chatJid];
+    const groupFolder = group ? resolveGroupFolderPath(group.folder) : '';
+
+    // Process attachments if present
+    let attachmentDescs: string[] = [];
+    if (attachments?.length && groupFolder) {
+      try {
+        const processed = await processAttachments(attachments, {
+          appId: QQ_CONFIG.appId,
+          groupFolder,
+          log: {
+            info: (msg) => logger.info(msg),
+            error: (msg) => logger.error(msg),
+            warn: (msg) => logger.warn(msg),
+            debug: (msg) => logger.debug(msg),
+          },
+        });
+
+        // Collect attachment descriptions from processed result
+        if (processed.attachmentInfo) {
+          attachmentDescs = processed.attachmentInfo.split(' ').filter(Boolean);
+        }
+      } catch (err) {
+        logger.error({ error: err }, 'Failed to process attachments');
+      }
+    } else if (attachments?.length) {
+      // Fallback: generate descriptions without downloading
+      attachmentDescs = attachments.map(att => {
+        const type = att.content_type?.toLowerCase() || '';
+        if (type.startsWith('image/')) {
+          return `[图片：${att.filename || 'image'}]`;
+        } else if (type.includes('voice') || type.includes('audio') || type.includes('silk') || type.includes('amr')) {
+          const transcript = att.asr_refer_text ? `（内容："${att.asr_refer_text}"）` : '';
+          return `[语音${transcript}]`;
+        } else if (type.startsWith('video/')) {
+          return `[视频：${att.filename || 'video'}]`;
+        } else if (type.startsWith('application/') || type.startsWith('text/')) {
+          return `[文件：${att.filename || 'file'}]`;
+        } else {
+          return '[附件]';
+        }
+      });
+    }
+
+    // Add attachment descriptions to content
+    if (attachmentDescs.length > 0) {
+      processedContent = `${processedContent}\n\n${attachmentDescs.join(' ')}`;
+    }
+
     // Build content with quoted message if present
-    let processedContent = content;
     if (quotedContent) {
-      processedContent = `（引用：${quotedContent}）\n\n${content}`;
+      processedContent = `（引用：${quotedContent}）\n\n${processedContent}`;
       logger.info({ 
         group: chatJid, 
-        originalContent: content,
-        quotedContent 
+        quotedContentLength: quotedContent.length
       }, 'Message with quote received');
     }
+
+    // Store current message to ref index for future quotes
+    const currentMsgIdx = (msgData.msg_idx as string) || generateRefIdx();
+    setRefIndex(currentMsgIdx, {
+      content: processedContent,
+      senderId: senderId,
+      senderName: `QQ User ${senderId.substring(0, 8)}`,
+      timestamp: Date.now(),
+      attachments: attachments?.map(att => ({
+        type: (att.content_type?.toLowerCase().startsWith('image/') ? 'image' :
+               att.content_type?.toLowerCase().includes('voice') || att.content_type?.toLowerCase().includes('audio') ? 'voice' :
+               att.content_type?.toLowerCase().startsWith('video/') ? 'video' :
+               att.content_type?.toLowerCase().startsWith('application/') || att.content_type?.toLowerCase().startsWith('text/') ? 'file' : 'unknown') as 'image' | 'voice' | 'video' | 'file' | 'unknown',
+        filename: att.filename,
+        contentType: att.content_type,
+        url: att.url,
+        transcript: att.asr_refer_text,
+        transcriptSource: att.asr_refer_text ? 'asr' : undefined,
+      })),
+    });
 
     const newMessage: NewMessage = {
       id: messageId,

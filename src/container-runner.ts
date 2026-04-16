@@ -97,20 +97,21 @@ function buildVolumeMounts(
     }
   }
 
-  // Per-group Qwen Code sessions directory (isolated from other groups)
-  // Each group gets their own .qwen-code/ to prevent cross-group session access
-  const groupSessionsDir = path.join(
-    DATA_DIR,
-    'sessions',
-    group.folder,
-    '.qwen-code',
-  );
-  fs.mkdirSync(groupSessionsDir, { recursive: true });
+  // Mount host's ~/.qwen to container's /home/node/.qwen
+  // This allows Qwen Code in container to find session files for --resume
+  const hostQwenDir = path.join(os.homedir(), '.qwen');
+  if (fs.existsSync(hostQwenDir)) {
+    mounts.push({
+      hostPath: hostQwenDir,
+      containerPath: '/home/node/.qwen',
+      readonly: false,
+    });
+  }
 
-  // Sync skills from container/skills/ into each group's .qwen-code/skills/
+  // Sync skills from container/skills/ into each group's .qwen/skills/
   const skillsSrc = path.join(process.cwd(), 'container', 'skills');
-  const skillsDst = path.join(groupSessionsDir, 'skills');
-  if (fs.existsSync(skillsSrc)) {
+  const skillsDst = path.join(hostQwenDir, 'skills');
+  if (fs.existsSync(skillsSrc) && fs.existsSync(hostQwenDir)) {
     for (const skillDir of fs.readdirSync(skillsSrc)) {
       const srcDir = path.join(skillsSrc, skillDir);
       if (!fs.statSync(srcDir).isDirectory()) continue;
@@ -118,11 +119,6 @@ function buildVolumeMounts(
       fs.cpSync(srcDir, dstDir, { recursive: true });
     }
   }
-  mounts.push({
-    hostPath: groupSessionsDir,
-    containerPath: '/home/node/.qwen-code',
-    readonly: false,
-  });
 
   // Per-group IPC namespace: each group gets its own IPC directory
   // This prevents cross-group privilege escalation via IPC
