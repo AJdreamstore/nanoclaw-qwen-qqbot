@@ -324,8 +324,20 @@ export class QQChannel implements Channel {
     let quotedContent = '';
     const messageReference = msgData.message_reference as { message_id?: string } | undefined;
     
+    logger.info({ 
+      group: type === 'GROUP_AT_MESSAGE_CREATE' ? msgData.group_openid : 'C2C',
+      messageId,
+      hasMessageReference: !!messageReference,
+      messageReference: messageReference || undefined
+    }, 'Checking for message reference');
+    
     if (messageReference?.message_id) {
       const quotedMessageId = messageReference.message_id;
+      
+      logger.info({ 
+        group: chatJid,
+        quotedMessageId 
+      }, 'Attempting to get quoted message from database');
       
       // Get quoted message from database
       const quotedMsg = getMessageById(chatJid, quotedMessageId);
