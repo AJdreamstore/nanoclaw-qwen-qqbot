@@ -342,8 +342,8 @@ async function runNativeAgent(
         cwd: workingDir,
         env: {
           ...process.env,
-          // Pass container path for SYSTEM.md (it's in the working directory which is mounted)
-          QWEN_SYSTEM_MD: '/workspace/group/SYSTEM.md',
+          // Pass HOST path for SYSTEM.md (Qwen Code reads this on the host before starting container)
+          QWEN_SYSTEM_MD: systemMdPath,
         },
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: false, // Disable shell to avoid argument parsing issues
@@ -354,8 +354,8 @@ async function runNativeAgent(
         cwd: workingDir,
         env: {
           ...process.env,
-          // Pass container path for SYSTEM.md (it's in the working directory which is mounted)
-          QWEN_SYSTEM_MD: '/workspace/group/SYSTEM.md',
+          // Pass HOST path for SYSTEM.md (Qwen Code reads this on the host before starting container)
+          QWEN_SYSTEM_MD: systemMdPath,
         },
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: false,
