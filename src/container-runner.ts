@@ -425,75 +425,75 @@ async function runNativeAgent(
         logger.warn({ group: group.name, stderr }, 'Qwen Code stderr output');
       }
 
+      // Find the actual session ID used by Qwen Code (even on error)
+      // Qwen Code stores sessions in ~/.qwen/projects/<projectDirName>/chats/<sessionId>.jsonl
+      // We need to find the latest session file in the project directory
+      // IMPORTANT: Qwen Code runs in Docker, so it uses the container workspace path
+      let actualSessionId: string | undefined;
+      
+      try {
+        // Use the same logic as Qwen Code to calculate project directory name
+        // Qwen Code uses the container workspace path when running in Docker
+        let projectDirName = QWEN_SANDBOX_WORKSPACE; // Use container workspace, not host workingDir
+        if (os.platform() === 'win32') {
+          projectDirName = projectDirName.toLowerCase();
+        }
+        projectDirName = projectDirName.replace(/[^a-zA-Z0-9]/g, '-');
+        
+        const qwenDir = path.join(os.homedir(), '.qwen');
+        const projectsDir = path.join(qwenDir, 'projects');
+        const chatsDir = path.join(projectsDir, projectDirName, 'chats');
+        
+        logger.info({
+          group: group.name,
+          QWEN_SANDBOX_WORKSPACE,
+          projectDirName,
+          chatsDir,
+          exists: fs.existsSync(chatsDir),
+        }, 'Checking Qwen Code session directory');
+        
+        if (fs.existsSync(chatsDir)) {
+          const files = fs.readdirSync(chatsDir).filter(f => f.endsWith('.jsonl'));
+          if (files.length > 0) {
+            // Get the most recent session file
+            files.sort((a, b) => {
+              const statA = fs.statSync(path.join(chatsDir, a));
+              const statB = fs.statSync(path.join(chatsDir, b));
+              return statB.mtimeMs - statA.mtimeMs;
+            });
+            actualSessionId = files[0].replace('.jsonl', '');
+            
+            logger.info({
+              group: group.name,
+              chatsDir,
+              sessionIdCount: files.length,
+              actualSessionId,
+              allSessions: files.slice(0, 5),
+            }, 'Found Qwen Code session files');
+          } else {
+            logger.warn({
+              group: group.name,
+              chatsDir,
+            }, 'Chats directory exists but no session files found');
+          }
+        } else {
+          // List all projects for debugging
+          if (fs.existsSync(projectsDir)) {
+            const allProjects = fs.readdirSync(projectsDir);
+            logger.info({
+              group: group.name,
+              projectsDir,
+              allProjects,
+            }, 'Found Qwen Code projects');
+          }
+        }
+      } catch (err) {
+        logger.warn({ group: group.name, error: err }, 'Failed to find Qwen Code session ID');
+      }
+
       if (code === 0) {
         // Log stdout length for debugging
         logger.debug({ group: group.name, stdoutLength: stdout.length }, 'Qwen Code stdout');
-        
-        // Find the actual session ID used by Qwen Code
-        // Qwen Code stores sessions in ~/.qwen/projects/<projectDirName>/chats/<sessionId>.jsonl
-        // We need to find the latest session file in the project directory
-        // IMPORTANT: Qwen Code runs in Docker, so it uses the container workspace path
-        let actualSessionId: string | undefined;
-        
-        try {
-          // Use the same logic as Qwen Code to calculate project directory name
-          // Qwen Code uses the container workspace path when running in Docker
-          let projectDirName = QWEN_SANDBOX_WORKSPACE; // Use container workspace, not host workingDir
-          if (os.platform() === 'win32') {
-            projectDirName = projectDirName.toLowerCase();
-          }
-          projectDirName = projectDirName.replace(/[^a-zA-Z0-9]/g, '-');
-          
-          const qwenDir = path.join(os.homedir(), '.qwen');
-          const projectsDir = path.join(qwenDir, 'projects');
-          const chatsDir = path.join(projectsDir, projectDirName, 'chats');
-          
-          logger.info({
-            group: group.name,
-            QWEN_SANDBOX_WORKSPACE,
-            projectDirName,
-            chatsDir,
-            exists: fs.existsSync(chatsDir),
-          }, 'Checking Qwen Code session directory');
-          
-          if (fs.existsSync(chatsDir)) {
-            const files = fs.readdirSync(chatsDir).filter(f => f.endsWith('.jsonl'));
-            if (files.length > 0) {
-              // Get the most recent session file
-              files.sort((a, b) => {
-                const statA = fs.statSync(path.join(chatsDir, a));
-                const statB = fs.statSync(path.join(chatsDir, b));
-                return statB.mtimeMs - statA.mtimeMs;
-              });
-              actualSessionId = files[0].replace('.jsonl', '');
-              
-              logger.info({
-                group: group.name,
-                chatsDir,
-                sessionIdCount: files.length,
-                actualSessionId,
-                allSessions: files.slice(0, 5),
-              }, 'Found Qwen Code session files');
-            } else {
-              logger.warn({
-                group: group.name,
-                chatsDir,
-              }, 'Chats directory exists but no session files found');
-            }
-          } else {
-            // List all projects for debugging
-            if (fs.existsSync(projectsDir)) {
-              const allProjects = fs.readdirSync(projectsDir);
-              logger.info({
-                group: group.name,
-                projectsDir,
-                allProjects,
-              }, 'Found Qwen Code projects');
-            }
-          }
-        } catch (err) {
-          logger.warn({ group: group.name, error: err }, 'Failed to find Qwen Code session ID');
-        }
         
         // Call onOutput with the final result if provided
         if (onOutput && stdout) {
