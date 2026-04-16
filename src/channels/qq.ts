@@ -288,6 +288,13 @@ export class QQChannel implements Channel {
     const content = msgData.content as string;
     const timestamp = msgData.timestamp as string;
 
+    logger.info({
+      type,
+      messageId,
+      msgDataKeys: Object.keys(msgData),
+      messageReference: msgData.message_reference || null
+    }, 'Incoming message received');
+
     // Parse face tags and clean mentions
     let processedContent = parseFaceTags(content);
     const mentions = msgData.mentions as unknown[] | undefined;
