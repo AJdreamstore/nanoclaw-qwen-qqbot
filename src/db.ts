@@ -611,6 +611,19 @@ export function setSession(groupFolder: string, sessionId: string): void {
 }
 
 /**
+ * Clear a session.
+ */
+export function clearSession(groupFolder: string): void {
+  if (!db) throw new Error('Database not initialized');
+
+  db.run(
+    'DELETE FROM sessions WHERE group_folder = ?',
+    [groupFolder],
+  );
+  saveDatabase();
+}
+
+/**
  * Set a registered group.
  */
 export function setRegisteredGroup(jid: string, group: RegisteredGroup): void {

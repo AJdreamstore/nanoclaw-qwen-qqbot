@@ -241,7 +241,8 @@ async function runNativeAgent(
   qwenArgs.push('--approval-mode', APPROVAL_MODE);
   qwenArgs.push('--output-format', QWEN_OUTPUT_FORMAT);
 
-  // Check session ID and use --resume to restore the correct session for this group
+  // Only use --resume if we have a session ID from a previous run
+  // If no session ID exists, let Qwen Code create a new session automatically
   let isResumedSession = false;
   if (input.sessionId) {
     qwenArgs.push('--resume', input.sessionId);
@@ -250,6 +251,10 @@ async function runNativeAgent(
       group: group.name, 
       sessionId: input.sessionId,
     }, 'Resuming Qwen Code session');
+  } else {
+    logger.info({ 
+      group: group.name,
+    }, 'No session ID, Qwen Code will create new session');
   }
 
   logger.debug(
