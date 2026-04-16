@@ -241,73 +241,15 @@ async function runNativeAgent(
   qwenArgs.push('--approval-mode', APPROVAL_MODE);
   qwenArgs.push('--output-format', QWEN_OUTPUT_FORMAT);
 
-  // Check session ID
-  logger.info({ 
-    group: group.name, 
-    inputSessionId: input.sessionId,
-    hasSessionId: !!input.sessionId 
-  }, 'Checking session ID from input');
-  
+  // Check session ID and use --resume to restore the correct session for this group
   let isResumedSession = false;
   if (input.sessionId) {
-    // Qwen Code runs on host with cwd = workingDir (host path)
-    // It uses cwd to determine the project directory for session storage
-    let projectDirName = workingDir;
-    
-    if (os.platform() === 'win32') {
-      projectDirName = projectDirName.toLowerCase();
-    }
-    projectDirName = projectDirName.replace(/[^a-zA-Z0-9]/g, '-');
-    
-    const homeDir = os.homedir();
-    const qwenDir = path.join(homeDir, '.qwen');
-    const projectsDir = path.join(qwenDir, 'projects');
-    const chatsDir = path.join(projectsDir, projectDirName, 'chats');
-    const sessionFile = path.join(chatsDir, `${input.sessionId}.jsonl`);
-    
-    // Debug: Check if directories exist
-    const homeExists = fs.existsSync(homeDir);
-    const qwenDirExists = fs.existsSync(qwenDir);
-    const projectsDirExists = fs.existsSync(projectsDir);
-    const chatsDirExists = fs.existsSync(chatsDir);
-    const sessionFileExists = fs.existsSync(sessionFile);
-    
+    qwenArgs.push('--resume', input.sessionId);
+    isResumedSession = true;
     logger.info({ 
       group: group.name, 
       sessionId: input.sessionId,
-      workingDir,
-      homeDir,
-      homeExists,
-      qwenDir,
-      qwenDirExists,
-      projectsDir,
-      projectsDirExists,
-      chatsDir,
-      chatsDirExists,
-      projectDirName,
-      sessionFile,
-      sessionFileExists,
-      // List existing projects
-      existingProjects: projectsDirExists ? fs.readdirSync(projectsDir).slice(0, 10) : [],
-      // List existing chats if projects dir exists
-      existingChats: chatsDirExists ? fs.readdirSync(path.join(projectsDir, projectDirName)).slice(0, 10) : [],
-    }, 'Checking Qwen Code session');
-    
-    if (sessionFileExists) {
-      qwenArgs.push('--resume', input.sessionId);
-      logger.info({ group: group.name, sessionId: input.sessionId, sessionFile }, 'Resuming existing Qwen Code session');
-      isResumedSession = true;
-    } else {
-      logger.info({ group: group.name, sessionId: input.sessionId }, 'Session file not found, will create new session');
-    }
-  }
-
-  // Use positional prompt for new sessions (recommended by Qwen Code)
-  // For resumed sessions, write to stdin
-  if (isResumedSession) {
-    // Will write to stdin after spawn
-  } else {
-    qwenArgs.push(input.prompt);
+    }, 'Resuming Qwen Code session');
   }
 
   logger.debug(
@@ -315,8 +257,7 @@ async function runNativeAgent(
       group: group.name, 
       args: qwenArgs.join(' '), 
       hasOnOutput: !!onOutput, 
-      promptSample: input.prompt.substring(0, 500), 
-      isResumedSession,
+      promptSample: input.prompt.substring(0, 500),
     },
     'Spawning Qwen Code'
   );
@@ -372,7 +313,6 @@ async function runNativeAgent(
       promptLength: input.prompt.length,
       systemMdPath,
       systemMdExists: fs.existsSync(systemMdPath),
-      isResumedSession
     }, 'Starting Qwen Code process with spawn');
 
     // Use spawn with full path to node executable
@@ -404,22 +344,14 @@ async function runNativeAgent(
 
     onProcess(child, `native-${group.folder}`);
 
-    // For resumed sessions, write prompt to stdin
-    // For new sessions, Qwen Code reads positional prompt from args
-    if (isResumedSession && child.stdin) {
+    // When using --continue, write prompt to stdin
+    if (child.stdin) {
       child.stdin.write(input.prompt);
       child.stdin.end();
       logger.info({ 
         group: group.name, 
         promptLength: input.prompt.length,
-        isResumedSession
-      }, 'Writing prompt to stdin for resumed session');
-    } else {
-      logger.info({ 
-        group: group.name, 
-        promptLength: input.prompt.length,
-        isResumedSession
-      }, 'Using positional prompt for new session');
+      }, 'Writing prompt to stdin for --continue mode');
     }
 
     let stdout = '';
@@ -497,39 +429,45 @@ async function runNativeAgent(
         // Log stdout length for debugging
         logger.debug({ group: group.name, stdoutLength: stdout.length }, 'Qwen Code stdout');
         
-        // Debug: Check if session file was created after Qwen Code run
-        let projectDirName = workingDir;
-        if (os.platform() === 'win32') {
-          projectDirName = projectDirName.toLowerCase();
+        // Find the actual session ID used by Qwen Code
+        // Qwen Code stores sessions in ~/.qwen/projects/<projectDirName>/chats/<sessionId>.jsonl
+        // We need to find the latest session file in the project directory
+        let actualSessionId: string | undefined;
+        
+        try {
+          let projectDirName = workingDir;
+          if (os.platform() === 'win32') {
+            projectDirName = projectDirName.toLowerCase();
+          }
+          projectDirName = projectDirName.replace(/[^a-zA-Z0-9]/g, '-');
+          
+          const qwenDir = path.join(os.homedir(), '.qwen');
+          const projectsDir = path.join(qwenDir, 'projects');
+          const chatsDir = path.join(projectsDir, projectDirName, 'chats');
+          
+          if (fs.existsSync(chatsDir)) {
+            const files = fs.readdirSync(chatsDir).filter(f => f.endsWith('.jsonl'));
+            if (files.length > 0) {
+              // Get the most recent session file
+              files.sort((a, b) => {
+                const statA = fs.statSync(path.join(chatsDir, a));
+                const statB = fs.statSync(path.join(chatsDir, b));
+                return statB.mtimeMs - statA.mtimeMs;
+              });
+              actualSessionId = files[0].replace('.jsonl', '');
+              
+              logger.info({
+                group: group.name,
+                chatsDir,
+                sessionIdCount: files.length,
+                actualSessionId,
+                allSessions: files.slice(0, 5),
+              }, 'Found Qwen Code session files');
+            }
+          }
+        } catch (err) {
+          logger.warn({ group: group.name, error: err }, 'Failed to find Qwen Code session ID');
         }
-        projectDirName = projectDirName.replace(/[^a-zA-Z0-9]/g, '-');
-        const qwenDir = path.join(os.homedir(), '.qwen');
-        const projectsDir = path.join(qwenDir, 'projects');
-        const expectedChatsDir = path.join(projectsDir, projectDirName, 'chats');
-        const expectedSessionFile = path.join(expectedChatsDir, `${input.sessionId}.jsonl`);
-        
-        const sessionFileExists = fs.existsSync(expectedSessionFile);
-        const chatsDirExists = fs.existsSync(expectedChatsDir);
-        const projectsDirExists = fs.existsSync(projectsDir);
-        
-        logger.info({
-          group: group.name,
-          sessionId: input.sessionId,
-          projectDirName,
-          projectsDir,
-          projectsDirExists,
-          expectedChatsDir,
-          chatsDirExists,
-          expectedSessionFile,
-          sessionFileExists,
-          // List all projects after run
-          existingProjects: projectsDirExists ? fs.readdirSync(projectsDir).slice(0, 10) : [],
-          // List all chats in expected project
-          existingChatsInProject: chatsDirExists ? fs.readdirSync(expectedChatsDir).slice(0, 10) : [],
-        }, 'Checking session file after Qwen Code run');
-        
-        // Qwen Code stores sessions in ~/.qwen/projects/<cwd>/chats/<sessionId>.jsonl
-        // Session ID is already tracked in index.ts, no need to retrieve from file
         
         // Call onOutput with the final result if provided
         if (onOutput && stdout) {
@@ -537,14 +475,14 @@ async function runNativeAgent(
           await onOutput({
             status: 'success',
             result: stdout,
-            newSessionId: input.sessionId, // Use the same session ID for next invocation
+            newSessionId: actualSessionId || input.sessionId,
           });
         }
         
         resolve({
           status: 'success',
           result: stdout,
-          newSessionId: input.sessionId, // Return the session ID for next invocation
+          newSessionId: actualSessionId || input.sessionId,
         });
       } else {
         resolve({

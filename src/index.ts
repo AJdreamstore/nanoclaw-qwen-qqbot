@@ -317,28 +317,22 @@ async function runAgent(
   onOutput?: (output: ContainerOutput) => Promise<void>,
 ): Promise<'success' | 'error'> {
   const isMain = group.folder === MAIN_GROUP_FOLDER;
-  let sessionId = sessions[group.folder];
+  const sessionId = sessions[group.folder];
 
-  // Generate a new session ID if not exists
-  if (!sessionId) {
-    sessionId = crypto.randomUUID();
-    logger.info({ 
-      group: group.name, 
-      groupFolder: group.folder, 
-      sessionId,
-      isNewSession: true 
-    }, 'Generated new session ID');
-    
-    // Save immediately
-    sessions[group.folder] = sessionId;
-    setSession(group.folder, sessionId);
-  } else {
+  // Use existing session ID if available (from previous run)
+  // If not, Qwen Code will create a new session automatically
+  if (sessionId) {
     logger.info({ 
       group: group.name, 
       groupFolder: group.folder, 
       sessionId,
       isNewSession: false 
     }, 'Using existing session ID');
+  } else {
+    logger.info({ 
+      group: group.name, 
+      groupFolder: group.folder,
+    }, 'No session ID, Qwen Code will create new session');
   }
 
   // Update tasks snapshot for container to read (filtered by group)
@@ -387,6 +381,16 @@ async function runAgent(
         'Container agent error',
       );
       return 'error';
+    }
+
+    // Save the actual session ID from Qwen Code for next invocation
+    if (output.newSessionId) {
+      sessions[group.folder] = output.newSessionId;
+      setSession(group.folder, output.newSessionId);
+      logger.info({
+        group: group.name,
+        sessionId: output.newSessionId,
+      }, 'Saved Qwen Code session ID for next invocation');
     }
 
     return 'success';
