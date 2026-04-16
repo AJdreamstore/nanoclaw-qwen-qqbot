@@ -259,20 +259,41 @@ async function runNativeAgent(
     }
     projectDirName = projectDirName.replace(/[^a-zA-Z0-9]/g, '-');
     
-    const chatsDir = path.join(os.homedir(), '.qwen', 'projects', projectDirName, 'chats');
+    const homeDir = os.homedir();
+    const qwenDir = path.join(homeDir, '.qwen');
+    const projectsDir = path.join(qwenDir, 'projects');
+    const chatsDir = path.join(projectsDir, projectDirName, 'chats');
     const sessionFile = path.join(chatsDir, `${input.sessionId}.jsonl`);
+    
+    // Debug: Check if directories exist
+    const homeExists = fs.existsSync(homeDir);
+    const qwenDirExists = fs.existsSync(qwenDir);
+    const projectsDirExists = fs.existsSync(projectsDir);
+    const chatsDirExists = fs.existsSync(chatsDir);
+    const sessionFileExists = fs.existsSync(sessionFile);
     
     logger.info({ 
       group: group.name, 
       sessionId: input.sessionId,
       workingDir,
-      projectDirName,
+      homeDir,
+      homeExists,
+      qwenDir,
+      qwenDirExists,
+      projectsDir,
+      projectsDirExists,
       chatsDir,
+      chatsDirExists,
+      projectDirName,
       sessionFile,
-      sessionExists: fs.existsSync(sessionFile)
+      sessionFileExists,
+      // List existing projects
+      existingProjects: projectsDirExists ? fs.readdirSync(projectsDir).slice(0, 10) : [],
+      // List existing chats if projects dir exists
+      existingChats: chatsDirExists ? fs.readdirSync(path.join(projectsDir, projectDirName)).slice(0, 10) : [],
     }, 'Checking Qwen Code session');
     
-    if (fs.existsSync(sessionFile)) {
+    if (sessionFileExists) {
       qwenArgs.push('--resume', input.sessionId);
       logger.info({ group: group.name, sessionId: input.sessionId, sessionFile }, 'Resuming existing Qwen Code session');
       isResumedSession = true;
@@ -475,6 +496,37 @@ async function runNativeAgent(
       if (code === 0) {
         // Log stdout length for debugging
         logger.debug({ group: group.name, stdoutLength: stdout.length }, 'Qwen Code stdout');
+        
+        // Debug: Check if session file was created after Qwen Code run
+        let projectDirName = workingDir;
+        if (os.platform() === 'win32') {
+          projectDirName = projectDirName.toLowerCase();
+        }
+        projectDirName = projectDirName.replace(/[^a-zA-Z0-9]/g, '-');
+        const qwenDir = path.join(os.homedir(), '.qwen');
+        const projectsDir = path.join(qwenDir, 'projects');
+        const expectedChatsDir = path.join(projectsDir, projectDirName, 'chats');
+        const expectedSessionFile = path.join(expectedChatsDir, `${input.sessionId}.jsonl`);
+        
+        const sessionFileExists = fs.existsSync(expectedSessionFile);
+        const chatsDirExists = fs.existsSync(expectedChatsDir);
+        const projectsDirExists = fs.existsSync(projectsDir);
+        
+        logger.info({
+          group: group.name,
+          sessionId: input.sessionId,
+          projectDirName,
+          projectsDir,
+          projectsDirExists,
+          expectedChatsDir,
+          chatsDirExists,
+          expectedSessionFile,
+          sessionFileExists,
+          // List all projects after run
+          existingProjects: projectsDirExists ? fs.readdirSync(projectsDir).slice(0, 10) : [],
+          // List all chats in expected project
+          existingChatsInProject: chatsDirExists ? fs.readdirSync(expectedChatsDir).slice(0, 10) : [],
+        }, 'Checking session file after Qwen Code run');
         
         // Qwen Code stores sessions in ~/.qwen/projects/<cwd>/chats/<sessionId>.jsonl
         // Session ID is already tracked in index.ts, no need to retrieve from file
