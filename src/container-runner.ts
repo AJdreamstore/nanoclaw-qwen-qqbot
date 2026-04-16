@@ -250,7 +250,11 @@ async function runNativeAgent(
   
   let isResumedSession = false;
   if (input.sessionId) {
-    let projectDirName = workingDir;
+    // When using Docker sandbox, Qwen Code runs inside container
+    // and uses container's workingDir (/workspace/group) to determine session path
+    // So we need to use container's workingDir to find the session file
+    let projectDirName = QWEN_SANDBOX_WORKSPACE; // Use container's workspace
+    
     if (os.platform() === 'win32') {
       projectDirName = projectDirName.toLowerCase();
     }
@@ -262,7 +266,8 @@ async function runNativeAgent(
     logger.info({ 
       group: group.name, 
       sessionId: input.sessionId,
-      workingDir,
+      hostWorkingDir: workingDir,
+      containerWorkingDir: QWEN_SANDBOX_WORKSPACE,
       projectDirName,
       chatsDir,
       sessionFile,
