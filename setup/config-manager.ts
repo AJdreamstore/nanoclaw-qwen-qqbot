@@ -199,10 +199,15 @@ async function configureLanguage(): Promise<void> {
     let content = fs.readFileSync(globalQwenMd, 'utf-8');
     
     // Remove existing language section if it exists
-    content = content.replace(/\n## Language\s+[\s\S]*?(?=\n##|\n$|$)/gi, '');
+    content = content.replace(/\n## Output Language\s+[\s\S]*?(?=\n##|\n$|$)/gi, '');
     
-    // Add language section after Overview
-    const languageSection = `\n## Language\nYou MUST communicate with users in **${selectedLanguage}** at all times.\n`;
+    // Add language section after Overview with clear, detailed instructions
+    const languageSection = `\n## Output Language
+**You MUST always communicate with users in: ${selectedLanguage}**
+
+This is the primary language for all interactions, responses, and output.
+Do not switch to other languages unless explicitly requested by the user.
+`;
     
     const overviewMatch = content.match(/## Overview\s+[\s\S]*?(?=\n##)/);
     if (overviewMatch) {

@@ -254,8 +254,55 @@ async function interactiveWizard(): Promise<void> {
       }
     }
 
-    // Step 3: Group registration
-    console.log('\n📋 Step 3/4: 群组注册...');
+    // Step 3: Output language configuration
+    console.log('\n📋 Step 3/5: 输出语言配置...');
+    console.log('   ℹ 选择 AI 助手的输出语言');
+    console.log('');
+    
+    const languageChoice = await question('   请选择语言 (1=中文简体 [默认], 2=English): ');
+    
+    const useChinese = languageChoice.trim() !== '2';
+    
+    if (useChinese) {
+      console.log('   ✓ 已选择：中文（简体）');
+      
+      // Update QWEN.md to specify Chinese
+      const qwenMdPath = path.join(process.cwd(), 'groups', 'global', 'QWEN.md');
+      if (fs.existsSync(qwenMdPath)) {
+        let qwenContent = fs.readFileSync(qwenMdPath, 'utf-8');
+        // Check if language section exists
+        if (!qwenContent.includes('输出语言') && !qwenContent.includes('Output language')) {
+          // Add language section after Overview
+          qwenContent = qwenContent.replace(
+            /(## 概述\s*\n[^#\n]+(?:\n[^#\n]+)*)/,
+            '$1\n## 输出语言\n**始终使用中文（简体）回复用户**，除非用户明确要求使用其他语言。\n'
+          );
+          fs.writeFileSync(qwenMdPath, qwenContent);
+          console.log('   ✓ 已更新 QWEN.md 中的语言配置');
+        }
+      }
+    } else {
+      console.log('   ✓ Selected: English');
+      
+      // Update QWEN.md to specify English
+      const qwenMdPath = path.join(process.cwd(), 'groups', 'global', 'QWEN.md');
+      if (fs.existsSync(qwenMdPath)) {
+        let qwenContent = fs.readFileSync(qwenMdPath, 'utf-8');
+        // Check if language section exists
+        if (!qwenContent.includes('输出语言') && !qwenContent.includes('Output language')) {
+          // Add language section after Overview
+          qwenContent = qwenContent.replace(
+            /(## Overview\s*\n[^#\n]+(?:\n[^#\n]+)*)/,
+            '$1\n## Output Language\n**Always respond in English** unless the user explicitly requests another language.\n'
+          );
+          fs.writeFileSync(qwenMdPath, qwenContent);
+          console.log('   ✓ Updated QWEN.md with language configuration');
+        }
+      }
+    }
+
+    // Step 4: Group registration
+    console.log('\n📋 Step 4/5: 群组注册...');
     console.log('   ℹ 注册 QQ 群组以使用 AI 助手');
     console.log('');
     
@@ -277,7 +324,8 @@ async function interactiveWizard(): Promise<void> {
       console.log('   ℹ 稍后配置群组：npx tsx setup/index.ts --step groups-interactive');
     }
 
-    // Step 4: Complete
+    // Step 5: Complete
+    console.log('\n📋 Step 5/5: 完成...');
     console.log('\n╔══════════════════════════════════════════════════════════════╗');
     console.log('║           配置完成！🎉                                       ║');
     console.log('╚══════════════════════════════════════════════════════════════╝');
@@ -285,6 +333,7 @@ async function interactiveWizard(): Promise<void> {
     console.log('   ✓ 环境已验证');
     console.log('   ✓ 配置已检查');
     console.log('   ✓ 数据库已配置');
+    console.log('   ✓ 语言已配置');
     if (setupGroups) {
       console.log('   ✓ 群组已注册');
     }
